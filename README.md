@@ -42,17 +42,3 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 
 Projects are autosaved to this browser's local storage. Open **My projects** to create,
 rename, duplicate or delete them.
-
-## Development
-
-Requires Node.js (or [Bun](https://bun.sh)).
-
-```sh
-bun install      # or: npm install
-bun run dev      # start the dev server at http://localhost:5173
-bun run build    # production build (.output/)
-bun run lint     # ESLint
-bun run test     # Vitest
-```
-
-Built with React 19, TanStack Start, Tailwind CSS 4, Zustand and d3-zoom.

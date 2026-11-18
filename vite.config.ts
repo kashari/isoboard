@@ -9,10 +9,17 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Static build for GitHub Pages: `BASE_PATH=/isoboard/ npm run build` prerenders the single
+// page to plain HTML under that sub-path and emits a static site in dist/client (no server).
+// Without BASE_PATH the build is unchanged (SSR, Cloudflare target).
+const basePath = process.env["BASE_PATH"];
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    ...(basePath ? { prerender: { enabled: true, crawlLinks: false } } : {}),
   },
+  ...(basePath ? { vite: { base: basePath }, nitro: false } : {}),
 });

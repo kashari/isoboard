@@ -26,7 +26,13 @@ import { snapshotCanvas, snapshotToPng } from "@/lib/export-view";
 export function Logo() {
   return (
     <div className="brand">
-      <img src="/favicon.svg" alt="" width={30} height={30} className="brand-mark" />
+      <img
+        src={`${import.meta.env.BASE_URL}favicon.svg`}
+        alt=""
+        width={30}
+        height={30}
+        className="brand-mark"
+      />
       <span>
         isoboard<span className="brand-period">.</span>
       </span>
