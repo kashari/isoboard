@@ -1,0 +1,281 @@
+import { NodeSolid, type SolidProps } from "./NodeSolid";
+import type { ComponentType } from "react";
+import type { NodeType, NodeColor, Mode } from "@/types/diagram";
+export interface RegistryEntry {
+  component: ComponentType<SolidProps>;
+  label: string;
+  description: string;
+  icon: string;
+  color: NodeColor;
+  defaultData: Record<string, unknown>;
+  inspectorFields: string[];
+  paletteGroup: string;
+  modes: Mode[];
+}
+function entry(
+  label: string,
+  description: string,
+  icon: string,
+  color: NodeColor,
+  paletteGroup: string,
+  inspectorFields: string[] = [],
+  modes: Mode[] = ["architecture"],
+): RegistryEntry {
+  return {
+    component: NodeSolid,
+    label,
+    description,
+    icon,
+    color,
+    paletteGroup,
+    modes,
+    defaultData: {},
+    inspectorFields,
+  };
+}
+const ALL: Mode[] = ["architecture", "flow", "state"];
+export const registry: Record<NodeType, RegistryEntry> = {
+  client: entry("Client device", "Laptop & browser", "Laptop", "stone", "PEOPLE & CLIENTS", [
+    "platform",
+  ]),
+  user: entry("User", "A person or actor", "UserRound", "mint", "PEOPLE & CLIENTS"),
+  mobile: entry("Mobile app", "Phone & tablet", "Smartphone", "blue", "PEOPLE & CLIENTS", [
+    "platform",
+  ]),
+  service: entry("Service / server", "Application & compute", "Server", "blue", "COMPUTE", [
+    "host",
+    "port",
+  ]),
+  balancer: entry("Load balancer", "Distribute traffic", "Split", "mint", "COMPUTE", ["algorithm"]),
+  external: entry("External service", "Third-party & cloud", "Cloud", "peach", "COMPUTE", [
+    "provider",
+  ]),
+  function: entry("Function", "Serverless code", "SquareFunction", "amber", "COMPUTE", ["runtime"]),
+  ai: entry("AI model", "LLM or ML service", "Sparkles", "lavender", "COMPUTE", ["model"]),
+  gateway: entry("API gateway", "Front door for APIs", "Waypoints", "amber", "NETWORK & SECURITY", [
+    "routes",
+  ]),
+  cdn: entry("CDN", "Edge cache, worldwide", "Earth", "blue", "NETWORK & SECURITY", ["provider"]),
+  firewall: entry("Firewall", "Keeps traffic out", "BrickWall", "peach", "NETWORK & SECURITY", [
+    "rules",
+  ]),
+  auth: entry("Auth", "Identity & access", "LockKeyhole", "amber", "NETWORK & SECURITY", [
+    "provider",
+  ]),
+  analytics: entry(
+    "Analytics",
+    "Metrics & dashboards",
+    "ChartColumnIncreasing",
+    "mint",
+    "DATA & STORAGE",
+    ["tool"],
+  ),
+  mail: entry("Email / notify", "Messages & alerts", "Mail", "peach", "DATA & STORAGE", [
+    "channel",
+  ]),
+  database: entry("Database", "Persistent data", "Database", "lavender", "DATA & STORAGE", [
+    "engine",
+    "port",
+  ]),
+  cache: entry("Cache", "Fast, temporary data", "Database", "amber", "DATA & STORAGE", ["ttl"]),
+  queue: entry("Message queue", "Async communication", "Layers", "peach", "DATA & STORAGE", [
+    "topic",
+  ]),
+  storage: entry("Storage bucket", "Files & objects", "PackageOpen", "mint", "DATA & STORAGE", [
+    "bucket",
+  ]),
+  box: entry("Generic box", "Make it your own", "Box", "stone", "SHAPES", [], ALL),
+  pyramid: entry("Pyramid", "A pointy landmark", "Pyramid", "amber", "SHAPES", [], ALL),
+  sphere: entry("Sphere", "A round marker", "Circle", "peach", "SHAPES", [], ALL),
+  cone: entry("Cone", "A little beacon", "Cone", "mint", "SHAPES", [], ALL),
+  note: entry("Sticky note", "A little context", "StickyNote", "amber", "ANNOTATIONS", [], ALL),
+  zone: entry(
+    "Zone / group",
+    "A logical boundary",
+    "PanelsTopLeft",
+    "blue",
+    "ANNOTATIONS",
+    ["width", "height"],
+    ALL,
+  ),
+  start: entry("Start", "Where the flow begins", "Play", "mint", "FLOW", [], ["flow"]),
+  end: entry("End", "Where the flow stops", "Square", "stone", "FLOW", [], ["flow"]),
+  condition: entry(
+    "Condition",
+    "Branch on an expression",
+    "GitBranch",
+    "amber",
+    "FLOW",
+    ["expression"],
+    ["flow"],
+  ),
+  process: entry(
+    "Process / action",
+    "An action or step",
+    "Cog",
+    "blue",
+    "ACTIONS & DATA",
+    ["action"],
+    ["flow", "state"],
+  ),
+  input: entry(
+    "Input",
+    "Data or signal coming in",
+    "LogIn",
+    "lavender",
+    "ACTIONS & DATA",
+    ["source"],
+    ["flow", "state"],
+  ),
+  output: entry(
+    "Output / result",
+    "Data or signal going out",
+    "LogOut",
+    "peach",
+    "ACTIONS & DATA",
+    ["target"],
+    ["flow", "state"],
+  ),
+  timer: entry(
+    "Timer / delay",
+    "Wait for a while",
+    "Timer",
+    "stone",
+    "TRIGGERS",
+    ["duration"],
+    ["flow", "state"],
+  ),
+  event: entry(
+    "Event",
+    "Something happened",
+    "Zap",
+    "amber",
+    "TRIGGERS",
+    ["event"],
+    ["flow", "state"],
+  ),
+  initial: entry(
+    "Initial state",
+    "Machine starts here",
+    "Circle",
+    "stone",
+    "STATES",
+    [],
+    ["state"],
+  ),
+  state: entry(
+    "State",
+    "A named condition",
+    "RectangleHorizontal",
+    "lavender",
+    "STATES",
+    ["entry", "exit"],
+    ["state"],
+  ),
+  final: entry(
+    "Final state",
+    "Machine finishes here",
+    "CircleDot",
+    "stone",
+    "STATES",
+    [],
+    ["state"],
+  ),
+  composite: entry(
+    "Composite state",
+    "A state with sub-states",
+    "SquareStack",
+    "blue",
+    "STATES",
+    ["regions", "entry", "exit"],
+    ["state"],
+  ),
+  terminate: entry(
+    "Terminate",
+    "Stops the machine at once",
+    "OctagonX",
+    "peach",
+    "STATES",
+    [],
+    ["state"],
+  ),
+  choice: entry(
+    "Choice",
+    "Branch on guards at runtime",
+    "Diamond",
+    "amber",
+    "PSEUDOSTATES",
+    ["expression"],
+    ["state"],
+  ),
+  junction: entry(
+    "Junction",
+    "Merge or split paths",
+    "Dot",
+    "stone",
+    "PSEUDOSTATES",
+    [],
+    ["state"],
+  ),
+  fork: entry(
+    "Fork / join",
+    "Split into or sync regions",
+    "GitFork",
+    "stone",
+    "PSEUDOSTATES",
+    [],
+    ["state"],
+  ),
+  history: entry(
+    "History",
+    "Resume the last sub-state (depth: shallow / deep)",
+    "History",
+    "mint",
+    "PSEUDOSTATES",
+    ["depth"],
+    ["state"],
+  ),
+  entry: entry(
+    "Entry point",
+    "Enter a composite state",
+    "LogIn",
+    "mint",
+    "PSEUDOSTATES",
+    [],
+    ["state"],
+  ),
+  exit: entry(
+    "Exit point",
+    "Leave a composite state",
+    "LogOut",
+    "peach",
+    "PSEUDOSTATES",
+    [],
+    ["state"],
+  ),
+  guard: entry(
+    "Guard",
+    "A condition that must hold",
+    "ShieldCheck",
+    "mint",
+    "GUARDS",
+    ["condition"],
+    ["state"],
+  ),
+};
+/** Palette section order; groups not listed here go last. */
+export const paletteGroupOrder = [
+  "PEOPLE & CLIENTS",
+  "COMPUTE",
+  "NETWORK & SECURITY",
+  "DATA & STORAGE",
+  "FLOW",
+  "STATES",
+  "PSEUDOSTATES",
+  "GUARDS",
+  "ACTIONS & DATA",
+  "TRIGGERS",
+  "SHAPES",
+  "ANNOTATIONS",
+];
+export const colors: NodeColor[] = ["amber", "blue", "lavender", "mint", "peach", "stone"];

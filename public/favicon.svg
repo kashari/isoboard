@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Isoboard: an isometric block in the node palette (gold top, blue and rose sides). -->
+  <g stroke="#000" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M 7 19.5 L 32 32 L 32 59 L 7 46.5 Z" fill="#83b7e4" />
+    <path d="M 32 32 L 57 19.5 L 57 46.5 L 32 59 Z" fill="#e85f61" />
+    <path d="M 32 7 L 57 19.5 L 32 32 L 7 19.5 Z" fill="#f4c358" />
+  </g>
+  <path d="M 15.5 19.5 L 24.5 15" stroke="#fff" stroke-width="3.6" stroke-linecap="round" />
+</svg>
