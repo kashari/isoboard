@@ -8,12 +8,17 @@ import {
   StickyNote,
   Cable,
   X,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
+  FlipHorizontal2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
 import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
+import { readBend } from "@/lib/isometric";
 export function Inspector() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { diagram, selection, selectedEdge, updateNode, updateEdge, duplicate, remove } =
@@ -21,6 +26,11 @@ export function Inspector() {
   const node = diagram.nodes.find((n) => n.id === selection[0]);
   const edge = diagram.edges.find((e) => e.id === selectedEdge);
   const fromCondition = edge && diagram.nodes.find((n) => n.id === edge.from)?.type === "condition";
+  const stepIndex = edge ? diagram.edges.indexOf(edge) : -1;
+  const ends = edge && {
+    a: diagram.nodes.find((n) => n.id === edge.from),
+    b: diagram.nodes.find((n) => n.id === edge.to),
+  };
   return (
     <>
       <Button
@@ -121,6 +131,80 @@ export function Inspector() {
                   ))}
                 </select>
               </label>
+              <div className="field-label">
+                STEP
+                <div className="step-row">
+                  <span className="step-pill">
+                    {stepIndex + 1}
+                    <small> of {diagram.edges.length}</small>
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Earlier step"
+                    aria-label="Earlier step"
+                    disabled={stepIndex <= 0}
+                    onClick={() => useDiagram.getState().moveEdgeStep(edge.id, -1)}
+                  >
+                    <ArrowUp />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Later step"
+                    aria-label="Later step"
+                    disabled={stepIndex >= diagram.edges.length - 1}
+                    onClick={() => useDiagram.getState().moveEdgeStep(edge.id, 1)}
+                  >
+                    <ArrowDown />
+                  </Button>
+                  <Button
+                    variant={diagram.steps ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={!!diagram.steps}
+                    onClick={() => useDiagram.getState().toggleSteps()}
+                  >
+                    {diagram.steps ? "Numbers on" : "Numbers off"}
+                  </Button>
+                </div>
+              </div>
+              <div className="field-label">
+                ROUTE
+                <span className="field-hint">
+                  Drag the diamond on the connector to re-route it.
+                </span>
+                <div className="step-row">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!ends?.a || !ends.b}
+                    onClick={() => {
+                      if (!ends?.a || !ends.b) return;
+                      // Toggles between the two L-shaped routes.
+                      const { bend: current, ...rest } = edge.data;
+                      const flipped = { gx: ends.a.gx, gy: ends.b.gy };
+                      const b = readBend({ bend: current });
+                      const isFlipped = b && b.gx === flipped.gx && b.gy === flipped.gy;
+                      updateEdge(edge.id, { data: isFlipped ? rest : { ...rest, bend: flipped } });
+                    }}
+                  >
+                    <FlipHorizontal2 />
+                    Flip corner
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!readBend(edge.data)}
+                    onClick={() => {
+                      const { bend: _b, ...rest } = edge.data;
+                      updateEdge(edge.id, { data: rest });
+                    }}
+                  >
+                    <RotateCcw />
+                    Reset
+                  </Button>
+                </div>
+              </div>
             </div>
             <Button variant="outline" onClick={remove}>
               <Trash2 />

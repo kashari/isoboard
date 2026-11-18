@@ -951,16 +951,25 @@ kbd {
   font-size: 8px;
   font-weight: 500;
 }
+/* Block names get a halo in the canvas colour, so connectors and grid lines never cut through
+   the text. */
+.node-label,
+.node-sublabel {
+  stroke: var(--background);
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
 .node-label {
-  stroke: none;
   fill: var(--foreground);
   font-size: 13px;
   font-weight: 700;
+  stroke-width: 5px;
 }
 .node-sublabel {
-  stroke: none;
   fill: var(--muted-foreground);
-  font-size: 9px;
+  font-size: 9.5px;
+  font-weight: 500;
+  stroke-width: 4px;
 }
 .diagram-node {
   cursor: grab;
@@ -1014,15 +1023,65 @@ kbd {
 .arrow-tip {
   fill: var(--foreground);
 }
+/* Connector tags: a paper pill with an ink outline and a hard sticker shadow, matching the
+   blocks. The step number is the inverted (ink) half of the same pill. */
+.edge-tag {
+  cursor: pointer;
+}
 .edge-chip {
-  fill: var(--card);
-  stroke: var(--foreground);
-  stroke-width: 1;
+  fill: var(--node-paper);
+  stroke: var(--node-ink);
+  stroke-width: 1.6;
+}
+.edge-tag-shadow {
+  fill: var(--node-ink);
+  opacity: calc(var(--node-shadow-opacity) * 3);
+}
+.edge-tag-dashed .edge-chip {
+  stroke-dasharray: 4 2.5;
 }
 .edge-label {
-  fill: var(--foreground);
+  fill: var(--node-ink);
   stroke: none;
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.edge-step {
+  fill: var(--node-ink);
+  stroke: var(--node-ink);
+  stroke-width: 1.6;
+}
+.edge-step-label {
+  fill: var(--node-paper);
+  stroke: none;
+  font-size: 10px;
+  font-weight: 800;
+}
+.edge-tag:hover .edge-chip,
+.edge-tag-selected .edge-chip {
+  fill: color-mix(in oklch, var(--node-mint) 55%, var(--node-paper));
+}
+.edge-tag-selected .edge-chip,
+.edge-tag-selected .edge-step {
+  stroke-width: 2.4;
+}
+/* Elbow handle of the selected connector: drag to re-route. */
+.bend-handle {
+  cursor: move;
+}
+.bend-handle path:last-child {
+  fill: var(--node-paper);
+  stroke: var(--node-ink);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.bend-handle.bend-custom path:last-child,
+.bend-handle:hover path:last-child {
+  fill: var(--node-mint);
+}
+.bend-hit {
+  fill: transparent;
+  stroke: none;
 }
 .flow-dot {
   stroke: var(--foreground);
@@ -1227,6 +1286,42 @@ kbd {
 }
 .field-section label:last-child {
   margin-bottom: 0;
+}
+.field-label {
+  display: block;
+  font-size: 8px;
+  color: var(--muted-foreground);
+  margin-bottom: 13px;
+}
+.field-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0;
+}
+.step-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.step-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 46px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--node-ink);
+  color: var(--node-paper);
+  font-size: 12px;
+  font-weight: 800;
+}
+.step-pill small {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.75;
 }
 .color-swatches {
   display: flex;

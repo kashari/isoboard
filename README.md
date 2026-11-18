@@ -28,6 +28,8 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 | Duplicate · copy · paste | Ctrl/⌘ D · C · V |
 | Nudge · delete · deselect | Arrow keys · Delete · Esc |
 | Rename | Double-click a block |
+| Step numbers on / off | Numbered-list button in the canvas toolbar (reorder in the inspector) |
+| Re-route a connector | Select it and drag the diamond at its elbow; double-click the diamond to reset |
 | Show / hide components | `[` |
 | Focus mode (canvas only) | `F` |
 | Quick search | Ctrl/⌘ K |

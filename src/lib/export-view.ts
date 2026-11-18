@@ -17,6 +17,7 @@ const UI_ONLY = [
   ".selection-ground",
   ".marquee",
   ".connecting-line",
+  ".bend-handle",
   "foreignObject",
   "title",
 ].join(",");

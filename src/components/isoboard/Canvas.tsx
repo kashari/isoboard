@@ -1,14 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior } from "d3-zoom";
-import { Minus, Plus, Scan, MousePointer2, Hand, Cable, Play, Pause, Grid2X2 } from "lucide-react";
+import {
+  Minus,
+  Plus,
+  Scan,
+  MousePointer2,
+  Hand,
+  Cable,
+  Play,
+  Pause,
+  Grid2X2,
+  ListOrdered,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDiagram, newId } from "@/store/diagram";
+import { useDiagram, newId, shiftBend } from "@/store/diagram";
 import { registry } from "@/nodes/registry";
-import { project, unproject, depthSort, edgePoints } from "@/lib/isometric";
+import {
+  project,
+  unproject,
+  depthSort,
+  edgeRoute,
+  labelSpot,
+  blockBoxes,
+  trimRoute,
+  readBend,
+  defaultBend,
+  type Bend,
+} from "@/lib/isometric";
 import { edgeText } from "@/lib/logic";
 import { ValidationPanel } from "./ValidationPanel";
 import type { Node, NodeType } from "@/types/diagram";
+// Label pills use JetBrains Mono, whose glyphs are all 0.6em wide, so text width is exact
+// without measuring the DOM.
+const LABEL_SIZE = 10;
+const labelWidth = (text: string) => text.length * LABEL_SIZE * 0.6;
+// How far (px along the route) a connector reaches into a block before it shows: about the
+// footprint's half-width, less for the small pseudostate dots.
+const SMALL_TYPES = new Set<NodeType>([
+  "initial",
+  "final",
+  "junction",
+  "entry",
+  "exit",
+  "history",
+  "terminate",
+]);
+const reach = (n: Node) => (n.type === "zone" ? 0 : SMALL_TYPES.has(n.type) ? 22 : 44);
 
 // The grid never changes, so build it once as a single path instead of 258 elements per render.
 const GRID_PATH = Array.from({ length: 129 }, (_, k) => k - 64)
@@ -62,6 +100,10 @@ export function Canvas() {
   const marqueeRef = useRef(marquee);
   marqueeRef.current = marquee;
   const [moving, setMoving] = useState<Node[] | null>(null);
+  // Dragging a connector's elbow handle: the edge id and the live grid point.
+  const [bending, setBending] = useState<{ id: string; bend: Bend; moved: boolean } | null>(null);
+  const bendingRef = useRef(bending);
+  bendingRef.current = bending;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const flowRef = useRef<SVGGElement>(null);
@@ -212,9 +254,17 @@ export function Canvas() {
   function move(e: React.PointerEvent<SVGSVGElement>) {
     // Only track the pointer in state while drawing a connection — setting it on every move
     // re-rendered the whole canvas just from hovering.
-    if (!connecting && !drag.current && !marqueeRef.current) return;
+    if (!connecting && !drag.current && !marqueeRef.current && !bendingRef.current) return;
     const p = coordinates(e.clientX, e.clientY);
     if (connecting) setPointer(p);
+    const b = bendingRef.current;
+    if (b) {
+      const g = unproject(p.x, p.y);
+      const bend = { gx: Math.round(g.gx), gy: Math.round(g.gy) };
+      if (bend.gx !== b.bend.gx || bend.gy !== b.bend.gy)
+        setBending({ id: b.id, bend, moved: true });
+      return;
+    }
     if (drag.current) {
       const d = drag.current;
       const delta = unproject(p.x - d.x, p.y - d.y);
@@ -225,8 +275,42 @@ export function Canvas() {
     } else if (marqueeRef.current) setMarquee({ ...marqueeRef.current, endX: p.x, endY: p.y });
   }
   function finish(e: React.PointerEvent<SVGSVGElement>) {
+    if (bending) {
+      if (bending.moved) {
+        const { id, bend } = bending;
+        commit((d) => ({
+          ...d,
+          edges: d.edges.map((edge) => {
+            if (edge.id !== id) return edge;
+            const a = d.nodes.find((n) => n.id === edge.from),
+              b = d.nodes.find((n) => n.id === edge.to);
+            const { bend: _old, ...rest } = edge.data;
+            // Dropping the elbow back on the default corner clears the custom route.
+            const isDefault =
+              a && b && defaultBend(a, b).gx === bend.gx && defaultBend(a, b).gy === bend.gy;
+            return { ...edge, data: isDefault ? rest : { ...rest, bend } };
+          }),
+        }));
+      }
+      setBending(null);
+      return;
+    }
     if (drag.current && moving && drag.current.moved) {
-      commit((d) => ({ ...d, nodes: d.nodes.map((n) => moving.find((m) => m.id === n.id) ?? n) }));
+      const first = moving[0]!,
+        orig = drag.current.positions.find((n) => n.id === first.id)!;
+      const dx = first.gx - orig.gx,
+        dy = first.gy - orig.gy;
+      const ids = new Set(moving.map((m) => m.id));
+      commit((d) => ({
+        ...d,
+        nodes: d.nodes.map((n) => moving.find((m) => m.id === n.id) ?? n),
+        // A custom elbow travels with the blocks when both ends move together.
+        edges: d.edges.map((edge) =>
+          ids.has(edge.from) && ids.has(edge.to)
+            ? { ...edge, data: shiftBend(edge.data, dx, dy) }
+            : edge,
+        ),
+      }));
     }
     drag.current = null;
     setMoving(null);
@@ -265,6 +349,55 @@ export function Canvas() {
   const nodes = moving
     ? diagram.nodes.map((n) => moving.find((m) => m.id === n.id) ?? n)
     : diagram.nodes;
+  // Tags are placed one by one, each avoiding the blocks and the tags placed before it.
+  // Elbows count too, so a tag never hides the handle used to re-route a connector.
+  const obstacles = nodes.filter((n) => n.type !== "zone").flatMap(blockBoxes);
+  for (const edge of diagram.edges) {
+    const a = nodes.find((n) => n.id === edge.from),
+      b = nodes.find((n) => n.id === edge.to);
+    if (!a || !b) continue;
+    const c = (bending?.id === edge.id ? bending.bend : readBend(edge.data)) ?? defaultBend(a, b);
+    const p = project(c.gx, c.gy);
+    obstacles.push({ x0: p.x - 16, y0: p.y - 10, x1: p.x + 16, y1: p.y + 10 });
+  }
+  const routes = diagram.edges.flatMap((edge, index) => {
+    const a = nodes.find((n) => n.id === edge.from),
+      b = nodes.find((n) => n.id === edge.to);
+    if (!a || !b) return [];
+    const custom = bending?.id === edge.id ? bending.bend : readBend(edge.data);
+    // Stop at the blocks' edges rather than their (hidden) centres.
+    const pts = trimRoute(edgeRoute(a, b, custom), reach(a), reach(b));
+    const c = custom ?? defaultBend(a, b);
+    // State-machine transitions carry no text label; a guarded one shows a diamond.
+    const text = edge.kind === "transition" ? "" : edgeText(edge).trim();
+    const guard = edge.kind === "transition" ? String(edge.data["guard"] ?? "").trim() : "";
+    const badge = diagram.steps ? String(index + 1) : "";
+    const badgeW = badge ? Math.max(20, labelWidth(badge) + 11) : 0;
+    const textW = text ? labelWidth(text) + 20 : 0;
+    const tagW = badgeW + textW + (guard ? (badgeW + textW ? 22 : 16) : 0);
+    const mid = labelSpot(pts, tagW, obstacles);
+    if (tagW)
+      obstacles.push({
+        x0: mid.x - tagW / 2,
+        y0: mid.y - 11,
+        x1: mid.x + tagW / 2,
+        y1: mid.y + 13,
+      });
+    return [
+      {
+        edge,
+        path: "M " + pts.map((p) => `${p.x} ${p.y}`).join(" L "),
+        mid,
+        text,
+        guard,
+        badge,
+        badgeW,
+        textW,
+        elbow: project(c.gx, c.gy),
+        custom: !!custom,
+      },
+    ];
+  });
   return (
     <main className={`canvas-area tool-${tool}`}>
       <div className="canvas-toolbar panel">
@@ -307,6 +440,17 @@ export function Canvas() {
           onClick={() => useDiagram.setState({ playing: !playing })}
         >
           {playing ? <Pause /> : <Play />}
+        </Button>
+        <Button
+          title={diagram.steps ? "Hide step numbers" : "Show step numbers"}
+          aria-label="Toggle step numbers"
+          aria-pressed={!!diagram.steps}
+          variant="ghost"
+          size="icon"
+          className={diagram.steps ? "tool-active" : ""}
+          onClick={() => useDiagram.getState().toggleSteps()}
+        >
+          <ListOrdered />
         </Button>
         <Button
           title="Toggle grid"
@@ -386,68 +530,28 @@ export function Canvas() {
                 </g>
               );
             })}
-          {diagram.edges.map((edge) => {
-            const a = nodes.find((n) => n.id === edge.from),
-              b = nodes.find((n) => n.id === edge.to);
-            if (!a || !b) return null;
-            const pts = edgePoints(a, b);
-            const path = `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y}`;
-            const l1 = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
-              l2 = Math.hypot(pts[2].x - pts[1].x, pts[2].y - pts[1].y);
-            const ratio = (l1 + l2) / 2;
-            const mid =
-              ratio <= l1
-                ? {
-                    x: pts[0].x + (pts[1].x - pts[0].x) * (ratio / (l1 || 1)),
-                    y: pts[0].y + (pts[1].y - pts[0].y) * (ratio / (l1 || 1)),
-                  }
-                : {
-                    x: pts[1].x + (pts[2].x - pts[1].x) * ((ratio - l1) / (l2 || 1)),
-                    y: pts[1].y + (pts[2].y - pts[1].y) * ((ratio - l1) / (l2 || 1)),
-                  };
-            const text = edgeText(edge);
-            const w = text.length * 6.5 + 20;
-            return (
-              <g
-                key={edge.id}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  selectNodes([], edge.id);
-                }}
-                className={`diagram-edge ${edge.id === selectedEdge ? "edge-selected" : ""}`}
-              >
-                <path className="edge-hit" d={path} />
-                <path
-                  id={`path-${edge.id}`}
-                  className="edge-line"
-                  d={path}
-                  strokeDasharray={
-                    edge.style === "dashed" ? "7 5" : edge.style === "dotted" ? "1 6" : undefined
-                  }
-                  markerEnd="url(#arrow-end)"
-                  markerStart={edge.style === "bidirectional" ? "url(#arrow-end)" : undefined}
-                />
-                {/* State-machine transitions are drawn without a label chip; a guarded
-                    transition just gets a small diamond marker at its midpoint. */}
-                {edge.kind === "transition" && String(edge.data["guard"] ?? "").trim() && (
-                  <path
-                    className="guard-pip"
-                    d={`M ${mid.x} ${mid.y - 7} L ${mid.x + 7} ${mid.y} L ${mid.x} ${mid.y + 7} L ${mid.x - 7} ${mid.y} Z`}
-                  >
-                    <title>{`[${String(edge.data["guard"])}]`}</title>
-                  </path>
-                )}
-                {edge.kind !== "transition" && (
-                  <g transform={`translate(${mid.x - w / 2} ${mid.y - 29})`}>
-                    <rect className="edge-chip" width={w} height="23" rx="11.5" />
-                    <text className="edge-label" x={w / 2} y="15.5" textAnchor="middle">
-                      {text}
-                    </text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
+          {routes.map(({ edge, path }) => (
+            <g
+              key={edge.id}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                selectNodes([], edge.id);
+              }}
+              className={`diagram-edge ${edge.id === selectedEdge ? "edge-selected" : ""}`}
+            >
+              <path className="edge-hit" data-edge-hit={edge.id} d={path} />
+              <path
+                id={`path-${edge.id}`}
+                className="edge-line"
+                d={path}
+                strokeDasharray={
+                  edge.style === "dashed" ? "7 5" : edge.style === "dotted" ? "1 6" : undefined
+                }
+                markerEnd="url(#arrow-end)"
+                markerStart={edge.style === "bidirectional" ? "url(#arrow-end)" : undefined}
+              />
+            </g>
+          ))}
           <g ref={flowRef}>
             {diagram.edges.map((edge) => (
               <circle
@@ -529,6 +633,105 @@ export function Canvas() {
                 </g>
               );
             })}
+          {/* Labels, step numbers and the elbow handle sit above the blocks so they're never hidden. */}
+          <g className="edge-labels">
+            {routes.map(({ edge, mid, text, guard, badge, badgeW, textW }) => {
+              const selected = edge.id === selectedEdge;
+              // With a number, the text pill tucks under the number's right cap: one shape.
+              const tuck = badge && text ? 10 : 0;
+              const chipX = badgeW - tuck;
+              const total = badgeW + textW;
+              if (!total && !guard) return null;
+              const x0 = mid.x - total / 2 - (guard && total ? 11 : 0);
+              return (
+                <g
+                  key={edge.id}
+                  className={`edge-tag ${selected ? "edge-tag-selected" : ""} edge-tag-${edge.style}`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    selectNodes([], edge.id);
+                  }}
+                >
+                  {guard && (
+                    <path
+                      className="guard-pip"
+                      transform={`translate(${total ? x0 + total + 11 : mid.x} ${mid.y})`}
+                      d="M 0 -8 L 8 0 L 0 8 L -8 0 Z"
+                    >
+                      <title>{`[${guard}]`}</title>
+                    </path>
+                  )}
+                  {total > 0 && (
+                    <g transform={`translate(${x0} ${mid.y - 10})`}>
+                      <rect className="edge-tag-shadow" y="2.5" width={total} height="20" rx="10" />
+                      {text && (
+                        <>
+                          <rect
+                            className="edge-chip"
+                            x={chipX}
+                            width={textW + tuck}
+                            height="20"
+                            rx="10"
+                          />
+                          <text
+                            className="edge-label"
+                            x={chipX + tuck + textW / 2}
+                            y="13.6"
+                            textAnchor="middle"
+                          >
+                            {text}
+                          </text>
+                        </>
+                      )}
+                      {badge && (
+                        <>
+                          <rect className="edge-step" width={badgeW} height="20" rx="10" />
+                          <text
+                            className="edge-step-label"
+                            x={badgeW / 2}
+                            y="13.6"
+                            textAnchor="middle"
+                          >
+                            {badge}
+                          </text>
+                        </>
+                      )}
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+            {routes
+              .filter(({ edge }) => edge.id === selectedEdge)
+              .map(({ edge, elbow, custom }) => (
+                <g
+                  key={edge.id}
+                  className={`bend-handle ${custom ? "bend-custom" : ""}`}
+                  transform={`translate(${elbow.x} ${elbow.y})`}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.stopPropagation();
+                    const b =
+                      readBend(edge.data) ??
+                      defaultBend(
+                        nodes.find((n) => n.id === edge.from)!,
+                        nodes.find((n) => n.id === edge.to)!,
+                      );
+                    setBending({ id: edge.id, bend: b, moved: false });
+                    svgRef.current?.setPointerCapture(e.pointerId);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    const { bend: _b, ...rest } = edge.data;
+                    useDiagram.getState().updateEdge(edge.id, { data: rest });
+                  }}
+                >
+                  <title>Drag to re-route · double-click to reset</title>
+                  <path className="bend-hit" d="M 0 -14 L 24 0 L 0 14 L -24 0 Z" />
+                  <path d="M 0 -7 L 13 0 L 0 7 L -13 0 Z" />
+                </g>
+              ))}
+          </g>
           {connecting && (
             <path
               className="connecting-line"

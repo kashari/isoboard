@@ -1,8 +1,17 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { project, unproject, depthSort, freeCell, viewCenterCell } from "@/lib/isometric";
+import {
+  project,
+  unproject,
+  depthSort,
+  freeCell,
+  viewCenterCell,
+  edgeRoute,
+  trimRoute,
+  labelSpot,
+} from "@/lib/isometric";
 import { makeDemo } from "@/lib/demo";
 import { importDiagram } from "@/lib/import-diagram";
-import { useDiagram, newId, emptyDiagram } from "@/store/diagram";
+import { useDiagram, newId, emptyDiagram, shiftBend } from "@/store/diagram";
 
 describe("Isometric grid rules", () => {
   it("projects grid coordinates and elevation using the specified formula", () => {
@@ -118,5 +127,67 @@ describe("Ids", () => {
     } finally {
       Object.defineProperty(crypto, "randomUUID", { value: original, configurable: true });
     }
+  });
+});
+describe("Connectors: routes, labels and step numbers", () => {
+  const at = (id: string, gx: number, gy: number) => ({
+    ...makeDemo().nodes[0]!,
+    id,
+    type: "service" as const,
+    gx,
+    gy,
+    gz: 0,
+    label: id,
+    sublabel: "",
+  });
+  const a = at("a", 0, 0),
+    b = at("b", 4, 3);
+  it("routes along the iso axes through the default corner or a custom elbow", () => {
+    expect(edgeRoute(a, b)).toEqual([project(0, 0), project(4, 0), project(4, 3)]);
+    // Elbow at (2, 5): a → (2,0) → (2,5) → (4,5) → b, every segment along gx or gy.
+    expect(edgeRoute(a, b, { gx: 2, gy: 5 })).toEqual([
+      project(0, 0),
+      project(2, 0),
+      project(2, 5),
+      project(4, 5),
+      project(4, 3),
+    ]);
+    // Straight neighbours never yield a zero-length last segment (it would break the arrow).
+    const r = edgeRoute(a, at("c", 4, 0));
+    expect(r).toHaveLength(2);
+  });
+  it("trims a route at both blocks and keeps a tag off blocks when it can", () => {
+    const pts = edgeRoute(a, at("c", 8, 0));
+    const t = trimRoute(pts, 40, 40);
+    const len = (p: { x: number; y: number }[]) => Math.hypot(p[1]!.x - p[0]!.x, p[1]!.y - p[0]!.y);
+    expect(len(t)).toBeCloseTo(len(pts) - 80);
+    const blocked = { x0: -1000, y0: -1000, x1: (t[0]!.x + t[1]!.x) / 2 + 10, y1: 1000 };
+    const spot = labelSpot(t, 20, [blocked]);
+    expect(spot.x).toBeGreaterThan(blocked.x1);
+  });
+  it("toggles step numbers and reorders steps with undo", () => {
+    const s = useDiagram.getState();
+    s.open({ ...emptyDiagram(), nodes: [a, b, at("c", 8, 0)] });
+    s.addEdge("a", "b");
+    s.addEdge("b", "c");
+    const [first, second] = useDiagram.getState().diagram.edges.map((e) => e.id);
+    s.toggleSteps();
+    expect(useDiagram.getState().diagram.steps).toBe(true);
+    s.moveEdgeStep(second!, -1);
+    expect(useDiagram.getState().diagram.edges.map((e) => e.id)).toEqual([second, first]);
+    s.moveEdgeStep(second!, -1); // already first: no-op
+    expect(useDiagram.getState().diagram.edges[0]!.id).toBe(second);
+    s.undo();
+    s.undo();
+    expect(useDiagram.getState().diagram.steps).toBe(true);
+    s.undo();
+    expect(useDiagram.getState().diagram.steps).toBeFalsy();
+  });
+  it("moves a custom elbow with duplicated blocks", () => {
+    expect(shiftBend({ bend: { gx: 2, gy: 5 }, x: 1 }, 1, 1)).toEqual({
+      bend: { gx: 3, gy: 6 },
+      x: 1,
+    });
+    expect(shiftBend({}, 1, 1)).toEqual({});
   });
 });

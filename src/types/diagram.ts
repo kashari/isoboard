@@ -82,4 +82,6 @@ export interface Diagram {
   nodes: Node[];
   edges: Edge[];
   viewport: Viewport;
+  /** Show sequential step numbers (1, 2, 3…) on connectors, in `edges` order. */
+  steps?: boolean | undefined;
 }

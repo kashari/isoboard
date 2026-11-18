@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { defaultEdge } from "@/lib/logic";
+import { readBend } from "@/lib/isometric";
 import type { Diagram, Node, Edge, Viewport, Mode } from "@/types/diagram";
 interface State {
   diagram: Diagram;
@@ -19,6 +20,9 @@ interface State {
   updateEdge: (id: string, patch: Partial<Edge>) => void;
   addNode: (node: Node) => void;
   addEdge: (from: string, to: string) => void;
+  /** Moves a connector earlier (-1) or later (+1) in the step order. */
+  moveEdgeStep: (id: string, delta: number) => void;
+  toggleSteps: () => void;
   remove: () => void;
   duplicate: () => void;
   undo: () => void;
@@ -41,6 +45,11 @@ export function newId() {
   b[8] = ((b[8] ?? 0) & 0x3f) | 0x80;
   const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+/** Moves a connector's custom elbow (`data.bend`) along with its blocks. */
+export function shiftBend(data: Record<string, unknown>, dx: number, dy: number) {
+  const bend = readBend(data);
+  return bend ? { ...data, bend: { gx: bend.gx + dx, gy: bend.gy + dy } } : data;
 }
 /** A fresh, empty workbench — the default for new visitors and new projects. */
 export function emptyDiagram(): Diagram {
@@ -114,6 +123,16 @@ export const useDiagram = create<State>((set, get) => ({
       ],
     }));
   },
+  moveEdgeStep: (id, delta) =>
+    get().commit((d) => {
+      const i = d.edges.findIndex((e) => e.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= d.edges.length) return d;
+      const edges = [...d.edges];
+      [edges[i], edges[j]] = [edges[j]!, edges[i]!];
+      return { ...d, edges };
+    }),
+  toggleSteps: () => get().commit((d) => ({ ...d, steps: !d.steps })),
   remove: () => {
     const { selection, selectedEdge } = get();
     get().commit((d) => ({
@@ -142,6 +161,7 @@ export const useDiagram = create<State>((set, get) => ({
         id: newId(),
         from: idMap.get(e.from) ?? e.from,
         to: idMap.get(e.to) ?? e.to,
+        data: shiftBend(e.data, 1, 1),
       }));
     get().commit((d) => ({ ...d, nodes: [...d.nodes, ...nodes], edges: [...d.edges, ...edges] }));
     get().select(nodes.map((n) => n.id));

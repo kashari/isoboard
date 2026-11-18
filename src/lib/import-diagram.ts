@@ -29,6 +29,7 @@ const schema = z.object({
     }),
   ),
   viewport: z.object({ x: z.number(), y: z.number(), zoom: z.number().min(0.25).max(2.5) }),
+  steps: z.boolean().optional(),
 });
 export function importDiagram(text: string): Diagram {
   const diagram = schema.parse(JSON.parse(text));
