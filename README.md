@@ -35,6 +35,7 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 | Present | **Present** button or `P` |
 | Show / hide components | `[` |
 | Focus mode (canvas only) | `F` |
+| Browser full screen | Full-screen button in the top bar, or `Shift F` |
 | Quick search | Ctrl/⌘ K |
 | Play / pause flow animation | Tap Space |
 

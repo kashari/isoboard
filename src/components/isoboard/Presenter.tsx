@@ -74,22 +74,25 @@ export function Presenter() {
     }, HUD_IDLE);
   }, []);
 
-  // Full screen while presenting; leaving full screen (Esc) ends the presentation.
+  // Full screen while presenting; leaving full screen (Esc) ends the presentation. If the
+  // editor was already full screen, it stays that way afterwards.
   useEffect(() => {
-    let entered = false;
+    const wasFull = !!document.fullscreenElement;
+    let entered = wasFull;
     const change = () => {
       if (document.fullscreenElement) entered = true;
       else if (entered) useDiagram.getState().stopPresenting();
     };
     document.addEventListener("fullscreenchange", change);
-    document.documentElement.requestFullscreen?.().catch(() => {
-      /* not allowed (e.g. iframe): present in the window */
-    });
+    if (!wasFull)
+      document.documentElement.requestFullscreen?.().catch(() => {
+        /* not allowed (e.g. iframe): present in the window */
+      });
     wake();
     return () => {
       document.removeEventListener("fullscreenchange", change);
       clearTimeout(idle.current);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      if (!wasFull && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     };
   }, [wake]);
 

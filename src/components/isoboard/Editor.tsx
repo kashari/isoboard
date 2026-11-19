@@ -3,6 +3,7 @@ import { Canvas } from "./Canvas";
 import { Palette } from "./Palette";
 import { Inspector } from "./Inspector";
 import { Topbar } from "./Topbar";
+import { toggleFullscreen } from "@/lib/fullscreen";
 import { Projects } from "./Projects";
 import { CommandPalette } from "./CommandPalette";
 import { Presenter } from "./Presenter";
@@ -77,6 +78,11 @@ export function Editor() {
       if (!ctrl && !e.altKey && (e.key === "p" || e.key === "P")) {
         e.preventDefault();
         s.present();
+        return;
+      }
+      if (!ctrl && !e.altKey && e.shiftKey && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        toggleFullscreen();
         return;
       }
       if (!ctrl && !e.altKey && (e.key === "f" || e.key === "F")) {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Undo2,
   Redo2,
@@ -11,9 +11,12 @@ import {
   Image,
   FileImage,
   Presentation,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
+import { toggleFullscreen } from "@/lib/fullscreen";
 import { importDiagram } from "@/lib/import-diagram";
 import { snapshotCanvas, snapshotToPng } from "@/lib/export-view";
 export function Logo() {
@@ -46,7 +49,18 @@ export function downloadFile(content: string | Blob, name: string, type: string)
  * The top bar keeps only what you reach for: the project, the mode, undo/redo, export and
  * Present. Everything else lives behind shortcuts (⌘K search, [ palette, F focus).
  */
+function useFullscreen() {
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const sync = () => setFull(!!document.fullscreenElement);
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  return full;
+}
 export function Topbar({ onProjects }: { onProjects: () => void }) {
+  const full = useFullscreen();
   const { diagram, past, future, undo, redo, saved, commit, mode, setMode } = useDiagram();
   const [menu, setMenu] = useState(false);
   const [error, setError] = useState("");
@@ -127,6 +141,16 @@ export function Topbar({ onProjects }: { onProjects: () => void }) {
             onClick={redo}
           >
             <Redo2 />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title={full ? "Exit full screen (Shift F)" : "Full screen (Shift F)"}
+            aria-label={full ? "Exit full screen" : "Full screen"}
+            aria-pressed={full}
+            onClick={toggleFullscreen}
+          >
+            {full ? <Minimize /> : <Maximize />}
           </Button>
         </div>
         <div className="export-wrapper">
