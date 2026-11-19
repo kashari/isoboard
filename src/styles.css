@@ -2426,3 +2426,24 @@ kbd {
   align-items: center;
   gap: 5px;
 }
+
+.kid-icon .g-lavender {
+  fill: var(--node-lavender);
+}
+.kid-icon .g-file-ext {
+  fill: var(--node-paper);
+  stroke: none;
+  font-family: var(--font-mono);
+  font-size: 5.1px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+.solid .paper-side {
+  fill: color-mix(in oklch, var(--node-paper) 86%, var(--node-shade));
+}
+.solid .paper-side.shade-more {
+  fill: color-mix(in oklch, var(--node-paper) 74%, var(--node-shade));
+}
+.kid-icon .g-file-ext.on-light {
+  fill: var(--node-ink);
+}

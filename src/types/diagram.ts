@@ -55,6 +55,19 @@ export const NODE_TYPES = [
   "kubernetes",
   "docker",
   "nginx",
+  "file",
+  "file-pdf",
+  "file-csv",
+  "file-json",
+  "file-xml",
+  "file-xlsx",
+  "file-docx",
+  "file-zip",
+  "file-img",
+  "file-video",
+  "file-txt",
+  "file-yaml",
+  "file-log",
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 export type NodeColor = "amber" | "blue" | "lavender" | "mint" | "peach" | "stone";

@@ -10,6 +10,8 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
   analytics, email / notifications and external services.
 - **Tech stack**: Spring Boot, PostgreSQL, Oracle, MySQL, MongoDB, Redis, Kafka, RabbitMQ,
   Elasticsearch, Kubernetes, Docker and Nginx.
+- **Files**: generic file, PDF, CSV, JSON, XML, spreadsheet, Word document, archive, image,
+  video, text, YAML and log files. Their stickers also work as connector labels.
 - **Flows**: start and end, conditions, process steps, inputs and outputs, timers and events,
   with `true` / `false` branches and validation.
 - **State machines**: initial, final, composite and terminate states, plus choice, junction,

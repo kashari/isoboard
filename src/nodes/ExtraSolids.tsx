@@ -119,6 +119,35 @@ function Firewall() {
   );
 }
 
+/** A coloured tray holding a stack of paper sheets (dog-eared on top) with the file-type sticker. */
+function Document({ node }: { node: Node }) {
+  const sheet = (z: number, h: number, inset = 0) => {
+    const f = prism({ w: 1.12 - inset, d: 1.42 - inset, h, z });
+    return (
+      <>
+        <path className="paper-side" d={f.left} />
+        <path className="paper-side shade-more" d={f.right} />
+        <path className="paper" d={f.top} />
+      </>
+    );
+  };
+  const top = 22;
+  return (
+    <>
+      <Prism w={1.3} d={1.6} h={8} />
+      {sheet(8, 5)}
+      {sheet(13, 5, 0.04)}
+      {sheet(18, 4, 0.08)}
+      {/* Folded corner of the top sheet. */}
+      <path
+        className="paper-side"
+        d={`M ${pt(0.52, -0.3, top)} L ${pt(0.22, -0.67, top)} L ${pt(0.52, -0.67, top)} Z`}
+      />
+      <FaceIcon name={node.icon} cx={0} cy={-top - 2} scale={2.5} />
+    </>
+  );
+}
+
 function Gateway({ node }: { node: Node }) {
   return (
     <>
@@ -312,6 +341,7 @@ function Guard() {
 
 /** Shape renderers for the extra node types; NodeSolid falls back to its built-ins. */
 export const extraSolids: Partial<Record<NodeType, (node: Node) => ReactElement>> = {
+  file: (node) => <Document node={node} />,
   mobile: () => <Mobile />,
   cdn: () => <Sphere withBase />,
   firewall: () => <Firewall />,

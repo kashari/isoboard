@@ -20,6 +20,18 @@ const SHAPE_OF: Partial<Record<NodeType, NodeType>> = {
   rabbitmq: "queue",
   nginx: "balancer",
   docker: "box",
+  "file-pdf": "file",
+  "file-csv": "file",
+  "file-json": "file",
+  "file-xml": "file",
+  "file-xlsx": "file",
+  "file-docx": "file",
+  "file-zip": "file",
+  "file-img": "file",
+  "file-video": "file",
+  "file-txt": "file",
+  "file-yaml": "file",
+  "file-log": "file",
 };
 export function NodeSolid({ node, preview = false }: SolidProps) {
   const { color } = node;

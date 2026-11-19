@@ -367,6 +367,19 @@ export function Inspector() {
                         "Helm",
                         "Whale",
                         "Nginx",
+                        "File:FILE",
+                        "File:PDF",
+                        "File:CSV",
+                        "File:JSON",
+                        "File:XML",
+                        "File:XLSX",
+                        "File:DOCX",
+                        "File:ZIP",
+                        "File:IMG",
+                        "File:MP4",
+                        "File:TXT",
+                        "File:YAML",
+                        "File:LOG",
                       ].map((name) => (
                         <option key={name}>{name}</option>
                       ))}

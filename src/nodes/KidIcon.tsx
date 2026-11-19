@@ -5,7 +5,48 @@ import { icons, type LucideIcon } from "lucide-react";
  * A few common icons get hand-made, coloured glyphs; everything else falls back to a heavy
  * lucide line icon so every icon in the picker keeps working.
  */
+/** Band colour of each file-type sticker. */
+const FILE_BAND: Record<string, string> = {
+  PDF: "g-red",
+  CSV: "g-green",
+  XLSX: "g-green",
+  JSON: "g-amber",
+  ZIP: "g-amber",
+  XML: "g-blue",
+  DOCX: "g-blue",
+  IMG: "g-lavender",
+  MP4: "g-lavender",
+  YAML: "g-red",
+};
+/** Bands light enough to need dark text. */
+const LIGHT_BANDS = new Set(["g-amber", "g-blue"]);
+/** A page with a folded corner and a coloured band naming the file type ("File:PDF"). */
+function FileGlyph({ ext }: { ext: string }) {
+  return (
+    <>
+      <path className="g-paper" d="M 7.2 4.6 H 14.4 L 17.8 8 V 19.4 H 7.2 Z" />
+      <path d="M 14.4 4.6 V 8 H 17.8" />
+      <rect
+        className={FILE_BAND[ext] ?? "g-ink"}
+        x="4.4"
+        y="11"
+        width="12.2"
+        height="5.8"
+        rx="1.3"
+      />
+      <text
+        className={`g-file-ext ${LIGHT_BANDS.has(FILE_BAND[ext] ?? "") ? "on-light" : ""}`}
+        x="10.5"
+        y="15.35"
+        textAnchor="middle"
+      >
+        {ext}
+      </text>
+    </>
+  );
+}
 function Glyph({ name }: { name: string }) {
+  if (name.startsWith("File:")) return <FileGlyph ext={name.slice(5)} />;
   switch (name) {
     case "Server":
       return (
