@@ -18,31 +18,10 @@ export function depthSort(nodes: Node[]) {
 }
 export type Point = { x: number; y: number };
 export type Bend = { gx: number; gy: number };
-/** A connector's user-placed elbow (`edge.data.bend`), or null for the default route. */
+/** Legacy single elbow (`edge.data.bend`) from older diagrams; see lib/routing. */
 export function readBend(data: Record<string, unknown>): Bend | null {
   const b = data["bend"] as Partial<Bend> | undefined;
   return b && Number.isFinite(b.gx) && Number.isFinite(b.gy) ? { gx: b.gx!, gy: b.gy! } : null;
-}
-/** Where the elbow sits when the user hasn't moved it: first along gx, then along gy. */
-export function defaultBend(a: Node, b: Node): Bend {
-  return { gx: b.gx, gy: a.gy };
-}
-/**
- * Connector route along the iso axes, passing through `bend`:
- * a → (bend.gx, a.gy) → bend → (b.gx, bend.gy) → b. With the default bend this is the classic
- * L shape; any other bend gives a stepped route. Repeated points are dropped so the arrow marker
- * always takes its direction from a real segment.
- */
-export function edgeRoute(a: Node, b: Node, bend: Bend | null = null): Point[] {
-  const c = bend ?? defaultBend(a, b);
-  const grid: Bend[] = [a, { gx: c.gx, gy: a.gy }, c, { gx: b.gx, gy: c.gy }, b];
-  const pts: Point[] = [];
-  for (const g of grid) {
-    const p = project(g.gx, g.gy);
-    const last = pts.at(-1);
-    if (!last || last.x !== p.x || last.y !== p.y) pts.push(p);
-  }
-  return pts.length > 1 ? pts : [pts[0]!, pts[0]!];
 }
 /** Point at fraction `t` (0…1) of the way along a polyline. */
 export function pointAlong(pts: Point[], t: number): Point {

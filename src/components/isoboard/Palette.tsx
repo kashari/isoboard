@@ -23,12 +23,7 @@ export function Palette({ onHide }: { onHide: () => void }) {
   return (
     <aside className="palette-panel">
       <div className="panel-heading">
-        <div>
-          <div className="eyebrow">YOUR BUILDING BLOCKS</div>
-          <h2>
-            Components<span className="count-chip">{entries.length}</span>
-          </h2>
-        </div>
+        <h2>Components</h2>
         <Button
           variant="ghost"
           size="icon"

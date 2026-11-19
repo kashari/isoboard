@@ -5,13 +5,25 @@ import {
   depthSort,
   freeCell,
   viewCenterCell,
-  edgeRoute,
   trimRoute,
   labelSpot,
 } from "@/lib/isometric";
+import {
+  readRoute,
+  routeCorners,
+  routeSegments,
+  autoRoute,
+  grabSegment,
+  setSegment,
+  normalizeRoute,
+  shiftRoute,
+  layoutEdges,
+  presentableEdges,
+  LANE,
+} from "@/lib/routing";
 import { makeDemo } from "@/lib/demo";
 import { importDiagram } from "@/lib/import-diagram";
-import { useDiagram, newId, emptyDiagram, shiftBend } from "@/store/diagram";
+import { useDiagram, newId, emptyDiagram } from "@/store/diagram";
 
 describe("Isometric grid rules", () => {
   it("projects grid coordinates and elevation using the specified formula", () => {
@@ -142,22 +154,83 @@ describe("Connectors: routes, labels and step numbers", () => {
   });
   const a = at("a", 0, 0),
     b = at("b", 4, 3);
-  it("routes along the iso axes through the default corner or a custom elbow", () => {
-    expect(edgeRoute(a, b)).toEqual([project(0, 0), project(4, 0), project(4, 3)]);
-    // Elbow at (2, 5): a → (2,0) → (2,5) → (4,5) → b, every segment along gx or gy.
-    expect(edgeRoute(a, b, { gx: 2, gy: 5 })).toEqual([
-      project(0, 0),
-      project(2, 0),
-      project(2, 5),
-      project(4, 5),
-      project(4, 3),
+  const cells = (r: { gx: number; gy: number }[]) => r.map((p) => [p.gx, p.gy]);
+  it("routes along the iso axes: L by default, legacy elbows still read", () => {
+    expect(
+      cells(routeSegments(a, b, autoRoute(a, b)).flatMap((s, i) => (i ? [s.q] : [s.p, s.q]))),
+    ).toEqual([
+      [0, 0],
+      [4, 0],
+      [4, 3],
     ]);
-    // Straight neighbours never yield a zero-length last segment (it would break the arrow).
-    const r = edgeRoute(a, at("c", 4, 0));
-    expect(r).toHaveLength(2);
+    // Older diagrams stored one elbow as data.bend: a → (2,0) → (2,5) → (4,5) → b.
+    const legacy = readRoute({ bend: { gx: 2, gy: 5 } })!;
+    expect(cells(routeCorners(a, b, legacy))).toEqual([
+      [0, 0],
+      [2, 0],
+      [2, 5],
+      [4, 5],
+      [4, 3],
+    ]);
+    // Aligned blocks give one straight segment.
+    expect(routeSegments(a, at("c", 4, 0), autoRoute(a, at("c", 4, 0)))).toHaveLength(1);
+  });
+  it("picks the L that goes around a block in the way", () => {
+    const wall = at("wall", 4, 0);
+    expect(autoRoute(a, b, [a, b, wall]).start).toBe("y");
+    expect(autoRoute(a, b, [a, b]).start).toBe("x");
+  });
+  it("drags any segment sideways, including the anchored end ones", () => {
+    const l = { start: "x" as const, stops: [] };
+    // Grab the first segment (along gx at gy 0) and slide it to gy 2.
+    const g = grabSegment(a, b, l, 0);
+    const moved = setSegment(g.route, g.j, 2);
+    expect(cells(routeSegments(a, b, moved).flatMap((s, i) => (i ? [s.q] : [s.p, s.q])))).toEqual([
+      [0, 0],
+      [0, 2],
+      [4, 2],
+      [4, 3],
+    ]);
+    // Slide the last segment (along gy at gx 4) to gx 6: a Z with a stub into b.
+    const last = grabSegment(a, b, l, 1);
+    expect(cells(routeCorners(a, b, setSegment(last.route, last.j, 6)))).toEqual([
+      [0, 0],
+      [6, 0],
+      [6, 3],
+      [4, 3],
+    ]);
+    // Normalising drops stops that no longer turn anything.
+    expect(normalizeRoute(a, b, { start: "x", stops: [4, 0, 4] })).toEqual({
+      start: "x",
+      stops: [],
+    });
+  });
+  it("gives connectors that share a line their own lane", () => {
+    const c = at("c", 8, 0);
+    const edge = (id: string, from: string, to: string) => ({
+      id,
+      from,
+      to,
+      label: "",
+      style: "solid" as const,
+      kind: "plain" as const,
+      data: {},
+    });
+    const lay = layoutEdges([a, c], [edge("e1", "a", "c"), edge("e2", "c", "a")]);
+    expect(lay).toHaveLength(2);
+    expect(lay[0]!.path).not.toEqual(lay[1]!.path);
+    // Same line, offset by one lane (LANE grid units → ~8px apart on screen).
+    const gap = Math.abs(lay[0]!.points[0]!.y - lay[1]!.points.at(-1)!.y);
+    expect(gap).toBeGreaterThan(5);
+    expect(LANE).toBeGreaterThan(0.2);
+    expect(presentableEdges([a, c], [edge("e1", "a", "c"), edge("x", "a", "gone")])).toHaveLength(
+      1,
+    );
   });
   it("trims a route at both blocks and keeps a tag off blocks when it can", () => {
-    const pts = edgeRoute(a, at("c", 8, 0));
+    const pts = routeCorners(a, at("c", 8, 0), { start: "x", stops: [] })
+      .slice(0, 2)
+      .map((g) => project(g.gx, g.gy));
     const t = trimRoute(pts, 40, 40);
     const len = (p: { x: number; y: number }[]) => Math.hypot(p[1]!.x - p[0]!.x, p[1]!.y - p[0]!.y);
     expect(len(t)).toBeCloseTo(len(pts) - 80);
@@ -183,11 +256,15 @@ describe("Connectors: routes, labels and step numbers", () => {
     s.undo();
     expect(useDiagram.getState().diagram.steps).toBeFalsy();
   });
-  it("moves a custom elbow with duplicated blocks", () => {
-    expect(shiftBend({ bend: { gx: 2, gy: 5 }, x: 1 }, 1, 1)).toEqual({
+  it("moves a custom route (or legacy elbow) with its blocks", () => {
+    expect(shiftRoute({ bend: { gx: 2, gy: 5 }, x: 1 }, 1, 1)).toEqual({
       bend: { gx: 3, gy: 6 },
       x: 1,
     });
-    expect(shiftBend({}, 1, 1)).toEqual({});
+    // stops alternate axes: 2 is a gx (start x), 5 a gy.
+    expect(shiftRoute({ route: { start: "x", stops: [2, 5] } }, 1, 10)).toEqual({
+      route: { start: "x", stops: [3, 15] },
+    });
+    expect(shiftRoute({}, 1, 1)).toEqual({});
   });
 });

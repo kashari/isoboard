@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Move,
   StickyNote,
-  Cable,
   X,
   ArrowUp,
   ArrowDown,
@@ -18,7 +17,7 @@ import { useDiagram } from "@/store/diagram";
 import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
-import { readBend } from "@/lib/isometric";
+import { readRoute, autoRoute } from "@/lib/routing";
 export function Inspector() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { diagram, selection, selectedEdge, updateNode, updateEdge, duplicate, remove } =
@@ -45,19 +44,10 @@ export function Inspector() {
       </Button>
       <aside className={`inspector-panel ${mobileOpen ? "mobile-inspector-open" : ""}`}>
         <div className="panel-heading">
-          <div>
-            <div className="eyebrow">THE FINER DETAILS</div>
-            <h2>Inspector</h2>
-          </div>
-          <SlidersHorizontal size={17} />
+          <h2>{edge ? "Connection" : node ? "Block" : "Inspector"}</h2>
         </div>
         {edge ? (
           <div className="inspector-scroll">
-            <div className="selection-card">
-              <Cable size={28} />
-              <h3>Connection</h3>
-              <span className="tiny-chip">{edge.kind.toUpperCase()}</span>
-            </div>
             <div className="field-section">
               {fromCondition && (
                 <label>
@@ -171,7 +161,7 @@ export function Inspector() {
               <div className="field-label">
                 ROUTE
                 <span className="field-hint">
-                  Drag the diamond on the connector to re-route it.
+                  Drag any part of the connector sideways to re-route it.
                 </span>
                 <div className="step-row">
                   <Button
@@ -180,12 +170,15 @@ export function Inspector() {
                     disabled={!ends?.a || !ends.b}
                     onClick={() => {
                       if (!ends?.a || !ends.b) return;
-                      // Toggles between the two L-shaped routes.
-                      const { bend: current, ...rest } = edge.data;
-                      const flipped = { gx: ends.a.gx, gy: ends.b.gy };
-                      const b = readBend({ bend: current });
-                      const isFlipped = b && b.gx === flipped.gx && b.gy === flipped.gy;
-                      updateEdge(edge.id, { data: isFlipped ? rest : { ...rest, bend: flipped } });
+                      // Swaps between the two L-shaped routes.
+                      const auto = autoRoute(ends.a, ends.b, diagram.nodes);
+                      const now = readRoute(edge.data) ?? auto;
+                      const start = now.start === "x" ? "y" : "x";
+                      const { bend: _b, route: _r, ...rest } = edge.data;
+                      updateEdge(edge.id, {
+                        data:
+                          start === auto.start ? rest : { ...rest, route: { start, stops: [] } },
+                      });
                     }}
                   >
                     <FlipHorizontal2 />
@@ -194,9 +187,9 @@ export function Inspector() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!readBend(edge.data)}
+                    disabled={!readRoute(edge.data)}
                     onClick={() => {
-                      const { bend: _b, ...rest } = edge.data;
+                      const { bend: _b, route: _r, ...rest } = edge.data;
                       updateEdge(edge.id, { data: rest });
                     }}
                   >
@@ -205,6 +198,17 @@ export function Inspector() {
                   </Button>
                 </div>
               </div>
+              <label>
+                PRESENTER NOTE
+                <textarea
+                  aria-label="Presenter note"
+                  placeholder="Shown under this step when presenting"
+                  value={String(edge.data["note"] ?? "")}
+                  onChange={(e) =>
+                    updateEdge(edge.id, { data: { ...edge.data, note: e.target.value } })
+                  }
+                />
+              </label>
             </div>
             <Button variant="outline" onClick={remove}>
               <Trash2 />
@@ -319,6 +323,18 @@ export function Inspector() {
                         "History",
                         "OctagonX",
                         "SquareStack",
+                        "Spring",
+                        "Postgres",
+                        "Oracle",
+                        "Dolphin",
+                        "Leaf",
+                        "Redis",
+                        "Kafka",
+                        "Rabbit",
+                        "Elastic",
+                        "Helm",
+                        "Whale",
+                        "Nginx",
                       ].map((name) => (
                         <option key={name}>{name}</option>
                       ))}
@@ -429,10 +445,6 @@ export function Inspector() {
             <span>No component selected</span>
           </div>
         )}
-        <div className="inspector-status">
-          <span className="status-dot" />
-          Saved in this browser
-        </div>
       </aside>
     </>
   );

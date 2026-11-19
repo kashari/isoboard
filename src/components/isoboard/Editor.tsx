@@ -5,6 +5,9 @@ import { Inspector } from "./Inspector";
 import { Topbar } from "./Topbar";
 import { Projects } from "./Projects";
 import { CommandPalette } from "./CommandPalette";
+import { Presenter } from "./Presenter";
+import { PanelLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
 import type { Node, Edge } from "@/types/diagram";
 export function Editor() {
@@ -17,7 +20,7 @@ export function Editor() {
   const clipboard = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const spaceStart = useRef(0);
   const togglePaletteRef = useRef(() => {});
-  const { diagram, dark, selection, selectedEdge } = useDiagram();
+  const { diagram, selection, selectedEdge, presentation } = useDiagram();
   const hasSelection = selection.length > 0 || selectedEdge !== null;
   useEffect(() => {
     useDiagram.getState().hydrate();
@@ -39,13 +42,10 @@ export function Editor() {
       return !open;
     });
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-  useEffect(() => {
     if (!ready) return;
     const timer = setTimeout(() => useDiagram.getState().save(), 500);
     return () => clearTimeout(timer);
-  }, [diagram, dark, ready]);
+  }, [diagram, ready]);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
       const target = e.target;
@@ -57,6 +57,7 @@ export function Editor() {
       )
         return;
       const s = useDiagram.getState();
+      if (s.presentation) return; // the Presenter owns the keyboard
       const ctrl = e.ctrlKey || e.metaKey;
       if (ctrl && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -72,6 +73,11 @@ export function Editor() {
       if (!ctrl && !e.altKey && e.key === "[") {
         e.preventDefault();
         togglePaletteRef.current();
+      }
+      if (!ctrl && !e.altKey && (e.key === "p" || e.key === "P")) {
+        e.preventDefault();
+        s.present();
+        return;
       }
       if (!ctrl && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -145,6 +151,7 @@ export function Editor() {
       }
     };
     const keyup = (e: KeyboardEvent) => {
+      if (useDiagram.getState().presentation) return;
       if (e.code === "Space" && spaceStart.current) {
         if (performance.now() - spaceStart.current < 250)
           useDiagram.setState((s) => ({ playing: !s.playing }));
@@ -159,20 +166,12 @@ export function Editor() {
     };
   }, []);
   return (
-    <div className="isoboard-app">
+    <div className={`isoboard-app ${presentation ? "is-presenting" : ""}`}>
       <Topbar
-        paletteOpen={paletteOpen && !focus}
-        onTogglePalette={() => {
-          if (focus) setFocus(false);
-          else togglePalette();
-        }}
-        focus={focus}
-        onToggleFocus={() => setFocus((v) => !v)}
         onProjects={() => {
           useDiagram.getState().save();
           setProjects(true);
         }}
-        onCommand={() => setCommand(true)}
       />
       <div
         className={[
@@ -185,7 +184,19 @@ export function Editor() {
         <Palette onHide={togglePalette} />
         {ready ? <Canvas /> : <main className="canvas-area" />}
         <Inspector />
+        {!paletteOpen && !focus && !presentation && (
+          <Button
+            variant="outline"
+            className="palette-reopen"
+            title="Show components ( [ )"
+            onClick={togglePalette}
+          >
+            <PanelLeft />
+            Components
+          </Button>
+        )}
       </div>
+      {presentation && <Presenter />}
       {projects && <Projects onClose={() => setProjects(false)} />}{" "}
       {command && (
         <CommandPalette onClose={() => setCommand(false)} onProjects={() => setProjects(true)} />

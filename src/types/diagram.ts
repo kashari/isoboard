@@ -43,11 +43,23 @@ export const NODE_TYPES = [
   "terminate",
   "composite",
   "guard",
+  "springboot",
+  "postgres",
+  "oracle",
+  "mysql",
+  "mongodb",
+  "redis",
+  "kafka",
+  "rabbitmq",
+  "elastic",
+  "kubernetes",
+  "docker",
+  "nginx",
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 export type NodeColor = "amber" | "blue" | "lavender" | "mint" | "peach" | "stone";
 export type EdgeStyle = "solid" | "dashed" | "dotted" | "bidirectional";
-export const EDGE_KINDS = ["request", "response", "handshake", "transition"] as const;
+export const EDGE_KINDS = ["plain", "request", "response", "handshake", "transition"] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 export type Mode = "architecture" | "flow" | "state";
 export interface Node {

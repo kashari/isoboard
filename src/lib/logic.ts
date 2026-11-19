@@ -37,12 +37,13 @@ export function defaultEdge(
   if (from?.type === "condition") {
     const used = existing.filter((e) => e.from === from.id).map((e) => e.label);
     const label = ["true", "false"].find((l) => !used.includes(l)) ?? `branch ${used.length + 1}`;
-    return { label, kind: "request" };
+    return { label, kind: "plain" };
   }
   // Anything touching a state (e.g. Event → State) is a transition.
   if ([from, to].some((n) => n && STATE_TYPES.includes(n.type)))
     return { label: "event", kind: "transition" };
-  return { label: "Request", kind: "request" };
+  // A plain, unlabelled connector: name it only if it needs a name.
+  return { label: "", kind: "plain" };
 }
 export type Issue = { id: string; message: string; nodeId?: string; edgeId?: string };
 export function validate(d: Diagram): Issue[] {

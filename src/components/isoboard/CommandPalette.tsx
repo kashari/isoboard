@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, X, FolderOpen, Moon, Sun } from "lucide-react";
+import { Search, Plus, X, FolderOpen, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { registry } from "@/nodes/registry";
 import { useDiagram } from "@/store/diagram";
@@ -14,7 +14,7 @@ export function CommandPalette({
   onProjects: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const { dark, diagram, select } = useDiagram();
+  const { diagram, select } = useDiagram();
   return (
     <div className="modal-shade" onClick={onClose}>
       <div
@@ -88,11 +88,12 @@ export function CommandPalette({
           <Button
             variant="ghost"
             onClick={() => {
-              useDiagram.setState({ dark: !dark });
               onClose();
+              useDiagram.getState().present();
             }}
           >
-            {dark ? <Sun /> : <Moon />}Switch to {dark ? "light" : "dark"} theme
+            <Presentation />
+            Start presentation
           </Button>
         </div>
       </div>

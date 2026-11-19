@@ -92,6 +92,6 @@ describe("Logic validation", () => {
   it("treats any connector touching a state as a transition", () => {
     expect(defaultEdge(n("ev", "event"), [], n("s", "state")).kind).toBe("transition");
     expect(defaultEdge(n("s", "state"), []).kind).toBe("transition");
-    expect(defaultEdge(n("p", "process"), [], n("q", "process")).kind).toBe("request");
+    expect(defaultEdge(n("p", "process"), [], n("q", "process")).kind).toBe("plain");
   });
 });

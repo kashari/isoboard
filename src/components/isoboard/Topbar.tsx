@@ -1,12 +1,8 @@
 import { useRef, useState } from "react";
 import {
-  Search,
   Undo2,
   Redo2,
-  Sun,
-  Moon,
   ChevronDown,
-  ArrowUpRight,
   Check,
   FolderOpen,
   Download,
@@ -14,10 +10,7 @@ import {
   FileJson,
   Image,
   FileImage,
-  PanelLeft,
-  PanelLeftClose,
-  Maximize2,
-  Minimize2,
+  Presentation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
@@ -49,22 +42,12 @@ export function downloadFile(content: string | Blob, name: string, type: string)
   a.click();
   URL.revokeObjectURL(url);
 }
-export function Topbar({
-  onProjects,
-  onCommand,
-  paletteOpen,
-  onTogglePalette,
-  focus,
-  onToggleFocus,
-}: {
-  onProjects: () => void;
-  onCommand: () => void;
-  paletteOpen: boolean;
-  onTogglePalette: () => void;
-  focus: boolean;
-  onToggleFocus: () => void;
-}) {
-  const { diagram, past, future, undo, redo, dark, saved, commit, mode, setMode } = useDiagram();
+/**
+ * The top bar keeps only what you reach for: the project, the mode, undo/redo, export and
+ * Present. Everything else lives behind shortcuts (⌘K search, [ palette, F focus).
+ */
+export function Topbar({ onProjects }: { onProjects: () => void }) {
+  const { diagram, past, future, undo, redo, saved, commit, mode, setMode } = useDiagram();
   const [menu, setMenu] = useState(false);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -101,56 +84,29 @@ export function Topbar({
           <ChevronDown size={13} onClick={onProjects} />
         </div>
         <span className="project-save">
-          <span className="status-dot" />
-          {saved ? "Saved to this browser" : "Saving changes…"}
+          <span className={saved ? "status-dot" : "status-dot paused"} />
+          {saved ? "Saved" : "Saving…"}
         </span>
       </div>
+      <div className="mode-switch" role="group" aria-label="Mode">
+        {(
+          [
+            ["architecture", "Architecture"],
+            ["flow", "Flow"],
+            ["state", "State machine"],
+          ] as const
+        ).map(([value, label]) => (
+          <Button
+            key={value}
+            variant="ghost"
+            aria-pressed={mode === value}
+            onClick={() => setMode(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
       <div className="topbar-actions">
-        <div className="history-buttons">
-          <Button
-            variant="ghost"
-            size="icon"
-            title={paletteOpen ? "Hide components ( [ )" : "Show components ( [ )"}
-            aria-label={paletteOpen ? "Hide components" : "Show components"}
-            aria-pressed={paletteOpen}
-            onClick={onTogglePalette}
-          >
-            {paletteOpen ? <PanelLeftClose /> : <PanelLeft />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            title={focus ? "Exit focus mode (F)" : "Focus mode (F)"}
-            aria-label={focus ? "Exit focus mode" : "Focus mode"}
-            aria-pressed={focus}
-            onClick={onToggleFocus}
-          >
-            {focus ? <Minimize2 /> : <Maximize2 />}
-          </Button>
-        </div>
-        <div className="mode-switch" role="group" aria-label="Mode">
-          {(
-            [
-              ["architecture", "Architecture"],
-              ["flow", "Flow"],
-              ["state", "State machine"],
-            ] as const
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              variant="ghost"
-              aria-pressed={mode === value}
-              onClick={() => setMode(value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-        <Button variant="outline" className="command-button" onClick={onCommand}>
-          <Search />
-          <span>Quick search</span>
-          <kbd>⌘ K</kbd>
-        </Button>
         <div className="history-buttons">
           <Button
             variant="ghost"
@@ -173,20 +129,9 @@ export function Topbar({
             <Redo2 />
           </Button>
         </div>
-        <span className="topbar-rule" />
-        <Button
-          variant="ghost"
-          size="icon"
-          title="Toggle theme"
-          aria-label="Toggle theme"
-          onClick={() => useDiagram.setState({ dark: !dark })}
-        >
-          {dark ? <Sun /> : <Moon />}
-        </Button>
         <div className="export-wrapper">
-          <Button onClick={() => setMenu(!menu)} className="export-button">
+          <Button variant="outline" onClick={() => setMenu(!menu)} className="export-button">
             Export
-            <ArrowUpRight />
             <ChevronDown size={12} />
           </Button>
           {menu && (
@@ -242,6 +187,14 @@ export function Topbar({
             </>
           )}
         </div>
+        <Button
+          className="present-button"
+          title="Present (P)"
+          onClick={() => useDiagram.getState().present()}
+        >
+          <Presentation />
+          Present
+        </Button>
       </div>
       <input
         ref={input}

@@ -2,7 +2,7 @@
  * Exports exactly what the canvas currently shows (same viewport, theme and colours) as a
  * self-contained SVG or a high-resolution PNG.
  *
- * Instead of shipping the app stylesheet (which depends on CSS variables, `.dark` on <html>,
+ * Instead of shipping the app stylesheet (which depends on CSS variables,
  * oklch()/color-mix() and a Google-hosted font — none of which survive outside the app), every
  * element's *computed* style is baked into plain SVG presentation attributes with sRGB colours,
  * the paper background is added, and the UI font is embedded as data URLs.
@@ -17,7 +17,8 @@ const UI_ONLY = [
   ".selection-ground",
   ".marquee",
   ".connecting-line",
-  ".bend-handle",
+  ".segment-grip",
+  ".flow-dot",
   "foreignObject",
   "title",
 ].join(",");

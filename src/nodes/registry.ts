@@ -262,6 +262,31 @@ export const registry: Record<NodeType, RegistryEntry> = {
     ["condition"],
     ["state"],
   ),
+  // Tech stack: familiar shapes (server, cylinder, queue…) with a recognisable sticker.
+  springboot: entry("Spring Boot", "Java microservice", "Spring", "mint", "TECH STACK", [
+    "port",
+    "profile",
+  ]),
+  postgres: entry("PostgreSQL", "Relational database", "Postgres", "blue", "TECH STACK", [
+    "schema",
+    "port",
+  ]),
+  oracle: entry("Oracle DB", "Enterprise database", "Oracle", "peach", "TECH STACK", [
+    "schema",
+    "port",
+  ]),
+  mysql: entry("MySQL", "Relational database", "Dolphin", "amber", "TECH STACK", [
+    "schema",
+    "port",
+  ]),
+  mongodb: entry("MongoDB", "Document database", "Leaf", "mint", "TECH STACK", ["collection"]),
+  redis: entry("Redis", "In-memory cache", "Redis", "peach", "TECH STACK", ["ttl"]),
+  kafka: entry("Kafka", "Event streaming", "Kafka", "stone", "TECH STACK", ["topic"]),
+  rabbitmq: entry("RabbitMQ", "Message broker", "Rabbit", "amber", "TECH STACK", ["queue"]),
+  elastic: entry("Elasticsearch", "Search & logs", "Elastic", "lavender", "TECH STACK", ["index"]),
+  kubernetes: entry("Kubernetes", "Container cluster", "Helm", "blue", "TECH STACK", ["namespace"]),
+  docker: entry("Docker", "Container", "Whale", "blue", "TECH STACK", ["image"]),
+  nginx: entry("Nginx", "Web server & proxy", "Nginx", "mint", "TECH STACK", ["upstream"]),
 };
 /** Palette section order; groups not listed here go last. */
 export const paletteGroupOrder = [
@@ -269,6 +294,7 @@ export const paletteGroupOrder = [
   "COMPUTE",
   "NETWORK & SECURITY",
   "DATA & STORAGE",
+  "TECH STACK",
   "FLOW",
   "STATES",
   "PSEUDOSTATES",

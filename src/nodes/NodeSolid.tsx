@@ -1,4 +1,4 @@
-import type { Node } from "@/types/diagram";
+import type { Node, NodeType } from "@/types/diagram";
 import { FaceIcon, UserFigure } from "./KidIcon";
 import { extraSolids, Glint } from "./ExtraSolids";
 export { NodeIcon } from "./KidIcon";
@@ -6,8 +6,24 @@ export interface SolidProps {
   node: Node;
   preview?: boolean;
 }
+/** Tech-stack blocks reuse a base shape; their sticker icon tells them apart. */
+const SHAPE_OF: Partial<Record<NodeType, NodeType>> = {
+  springboot: "service",
+  kubernetes: "service",
+  postgres: "database",
+  oracle: "database",
+  mysql: "database",
+  mongodb: "database",
+  elastic: "database",
+  redis: "cache",
+  kafka: "queue",
+  rabbitmq: "queue",
+  nginx: "balancer",
+  docker: "box",
+};
 export function NodeSolid({ node, preview = false }: SolidProps) {
-  const { type, color } = node;
+  const { color } = node;
+  const type = SHAPE_OF[node.type] ?? node.type;
   const height = type === "cache" ? 23 : type === "balancer" ? 22 : 42;
   const tall = type === "box" || type === "storage" || type === "function" || type === "ai";
   return (

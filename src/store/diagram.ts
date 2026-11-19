@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { defaultEdge } from "@/lib/logic";
-import { readBend } from "@/lib/isometric";
+import { shiftRoute } from "@/lib/routing";
 import type { Diagram, Node, Edge, Viewport, Mode } from "@/types/diagram";
 interface State {
   diagram: Diagram;
@@ -10,7 +10,11 @@ interface State {
   past: Diagram[];
   future: Diagram[];
   playing: boolean;
-  dark: boolean;
+  /** Presentation mode: `step` 0 is the overview, 1…n the connectors in order, n+1 the summary. */
+  presentation: { step: number; follow: boolean } | null;
+  present: (step?: number) => void;
+  setPresentation: (patch: Partial<{ step: number; follow: boolean }>) => void;
+  stopPresenting: () => void;
   saved: boolean;
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -46,11 +50,6 @@ export function newId() {
   const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
-/** Moves a connector's custom elbow (`data.bend`) along with its blocks. */
-export function shiftBend(data: Record<string, unknown>, dx: number, dy: number) {
-  const bend = readBend(data);
-  return bend ? { ...data, bend: { gx: bend.gx + dx, gy: bend.gy + dy } } : data;
-}
 /** A fresh, empty workbench — the default for new visitors and new projects. */
 export function emptyDiagram(): Diagram {
   return {
@@ -69,7 +68,12 @@ export const useDiagram = create<State>((set, get) => ({
   past: [],
   future: [],
   playing: true,
-  dark: false,
+  presentation: null,
+  present: (step = 0) =>
+    set({ presentation: { step, follow: true }, selection: [], selectedEdge: null }),
+  setPresentation: (patch) =>
+    set((s) => (s.presentation ? { presentation: { ...s.presentation, ...patch } } : {})),
+  stopPresenting: () => set({ presentation: null }),
   saved: true,
   mode: "architecture",
   setMode: (mode) => {
@@ -161,7 +165,7 @@ export const useDiagram = create<State>((set, get) => ({
         id: newId(),
         from: idMap.get(e.from) ?? e.from,
         to: idMap.get(e.to) ?? e.to,
-        data: shiftBend(e.data, 1, 1),
+        data: shiftRoute(e.data, 1, 1),
       }));
     get().commit((d) => ({ ...d, nodes: [...d.nodes, ...nodes], edges: [...d.edges, ...edges] }));
     get().select(nodes.map((n) => n.id));
@@ -191,7 +195,6 @@ export const useDiagram = create<State>((set, get) => ({
       set({
         projects,
         diagram,
-        dark: localStorage.getItem("isoboard-theme") === "dark",
         mode: mode === "flow" || mode === "state" ? mode : "architecture",
       });
     } catch {
@@ -199,13 +202,13 @@ export const useDiagram = create<State>((set, get) => ({
     }
   },
   save: () => {
-    const { diagram, projects, dark } = get();
+    const { diagram, projects } = get();
     const next = projects.some((d) => d.id === diagram.id)
       ? projects.map((d) => (d.id === diagram.id ? diagram : d))
       : [...projects, diagram];
     localStorage.setItem("isoboard-projects", JSON.stringify(next));
     localStorage.setItem("isoboard-current", diagram.id);
-    localStorage.setItem("isoboard-theme", dark ? "dark" : "light");
+    localStorage.removeItem("isoboard-theme"); // dark mode was removed
     set({ projects: next, saved: true });
   },
   open: (diagram) =>
