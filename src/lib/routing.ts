@@ -271,6 +271,8 @@ function reach(n: Node, behind: boolean) {
 // Tag pills use JetBrains Mono (every glyph 0.6em wide), so text width is exact.
 export const LABEL_SIZE = 10;
 export const labelWidth = (text: string) => text.length * LABEL_SIZE * 0.6;
+/** Extra tag width for an item icon in front of the text. */
+export const ICON_W = 16;
 /** Arrowhead length (px); the line stops at its base. */
 export const HEAD = 13;
 
@@ -300,6 +302,8 @@ export interface EdgeLayout {
     badge: string;
     badgeW: number;
     textW: number;
+    /** Sticker icon of an item (`edge.data.icon`), shown in the tag before the text. */
+    icon: string;
   };
 }
 
@@ -363,7 +367,8 @@ export function layoutEdges(
     const guard = edge.kind === "transition" ? String(edge.data["guard"] ?? "").trim() : "";
     const badge = opts.steps ? String(it.index + 1) : "";
     const badgeW = badge ? Math.max(20, labelWidth(badge) + 11) : 0;
-    const textW = text ? labelWidth(text) + 20 : 0;
+    const icon = String(edge.data["icon"] ?? "").trim();
+    const textW = text ? labelWidth(text) + 20 + (icon ? ICON_W : 0) : icon ? 22 : 0;
     const tagW = badgeW + textW + (guard ? (badgeW + textW ? 22 : 16) : 0);
     const spot = labelSpot(tips, tagW, obstacles);
     if (tagW)
@@ -383,7 +388,7 @@ export function layoutEdges(
       head,
       tail,
       grips,
-      tag: { x: spot.x, y: spot.y, text, guard, badge, badgeW, textW },
+      tag: { x: spot.x, y: spot.y, text, guard, badge, badgeW, textW, icon },
     };
   });
 }

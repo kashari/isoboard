@@ -2415,3 +2415,14 @@ kbd {
     transform: translate(-50%, 12px);
   }
 }
+.icon-none {
+  width: 16px;
+  height: 16px;
+  border: 1.5px dashed var(--line-soft);
+  border-radius: 50%;
+}
+.pres-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}

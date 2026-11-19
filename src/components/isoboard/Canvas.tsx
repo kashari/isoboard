@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
 import { registry } from "@/nodes/registry";
+import { GlyphAt } from "@/nodes/KidIcon";
 import { project, unproject, depthSort } from "@/lib/isometric";
 import {
   layoutEdges,
@@ -28,6 +29,7 @@ import {
   presentableEdges,
   segmentDistance,
   frameOf,
+  ICON_W,
   type EdgeLayout,
   type Route,
 } from "@/lib/routing";
@@ -761,13 +763,13 @@ export function Canvas() {
             })}
             {layouts.filter(showTag).map((l) => {
               const { edge } = l;
-              const { x, y, text, guard, badgeW, textW } = l.tag;
+              const { x, y, text, guard, badgeW, textW, icon } = l.tag;
               // In a presentation the number shows on the connector on stage.
               const badge = presenting && !diagram.steps && !current ? "" : l.tag.badge;
               const bw = badge ? badgeW : 0;
               const selected = edge.id === selectedEdge;
               // With a number, the text pill tucks under the number's right cap: one shape.
-              const tuck = badge && text ? 10 : 0;
+              const tuck = badge && (text || icon) ? 10 : 0;
               const chipX = bw - tuck;
               const total = bw + textW;
               if (!total && !guard) return null;
@@ -793,7 +795,7 @@ export function Canvas() {
                   {total > 0 && (
                     <g transform={`translate(${x0} ${y - 10})`}>
                       <rect className="edge-tag-shadow" y="2.5" width={total} height="20" rx="10" />
-                      {text && (
+                      {(text || icon) && (
                         <>
                           <rect
                             className="edge-chip"
@@ -802,14 +804,29 @@ export function Canvas() {
                             height="20"
                             rx="10"
                           />
-                          <text
-                            className="edge-label"
-                            x={chipX + tuck + textW / 2}
-                            y="13.6"
-                            textAnchor="middle"
-                          >
-                            {text}
-                          </text>
+                          {icon && (
+                            <GlyphAt
+                              name={icon}
+                              x={chipX + tuck + (text ? 12 : 11)}
+                              y={10}
+                              size={15}
+                            />
+                          )}
+                          {text && (
+                            <text
+                              className="edge-label"
+                              x={
+                                chipX +
+                                tuck +
+                                (icon ? ICON_W : 0) +
+                                (textW - (icon ? ICON_W : 0)) / 2
+                              }
+                              y="13.6"
+                              textAnchor="middle"
+                            >
+                              {text}
+                            </text>
+                          )}
                         </>
                       )}
                       {badge && (

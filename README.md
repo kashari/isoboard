@@ -32,6 +32,7 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 | Rename | Double-click a block |
 | Step numbers on / off | Numbered-list button in the canvas toolbar (reorder in the inspector) |
 | Re-route a connector | Drag any part of it sideways (grips show when selected); double-click to reset |
+| Label a connector with an item | Select it, pick one under **Label item** (shows that item's sticker) |
 | Present | **Present** button or `P` |
 | Show / hide components | `[` |
 | Focus mode (canvas only) | `F` |

@@ -187,6 +187,33 @@ export function NodeIcon({ name, size = 18 }: { name: string; size?: number }) {
   );
 }
 
+/** An item's glyph centred at (x, y) inside an SVG scene, e.g. on a connector tag. */
+export function GlyphAt({
+  name,
+  x,
+  y,
+  size,
+}: {
+  name: string;
+  x: number;
+  y: number;
+  size: number;
+}) {
+  return (
+    <svg
+      x={x - size / 2}
+      y={y - size / 2}
+      width={size}
+      height={size}
+      viewBox="2 2 20 20"
+      overflow="visible"
+      className="kid-icon kid-icon-ui"
+    >
+      <Glyph name={name} />
+    </svg>
+  );
+}
+
 /**
  * Icon shown as an upright round sticker sitting on a block's top face, centred at (cx, cy).
  * Upright keeps the chunky glyphs readable; `scale` is relative to the 24px icon box.

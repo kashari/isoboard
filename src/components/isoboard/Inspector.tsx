@@ -18,6 +18,10 @@ import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
 import { readRoute, autoRoute } from "@/lib/routing";
+/** Items whose sticker can label a connector: one entry per distinct icon, A–Z. */
+const labelItems = [
+  ...new Map(Object.values(registry).map((e) => [e.icon, e.label] as const)).entries(),
+].sort((a, b) => a[1].localeCompare(b[1]));
 export function Inspector() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { diagram, selection, selectedEdge, updateNode, updateEdge, duplicate, remove } =
@@ -26,6 +30,7 @@ export function Inspector() {
   const edge = diagram.edges.find((e) => e.id === selectedEdge);
   const fromCondition = edge && diagram.nodes.find((n) => n.id === edge.from)?.type === "condition";
   const stepIndex = edge ? diagram.edges.indexOf(edge) : -1;
+  const edgeIcon = edge ? String(edge.data["icon"] ?? "") : "";
   const ends = edge && {
     a: diagram.nodes.find((n) => n.id === edge.from),
     b: diagram.nodes.find((n) => n.id === edge.to),
@@ -94,6 +99,33 @@ export function Inspector() {
                   value={edge.label}
                   onChange={(e) => updateEdge(edge.id, { label: e.target.value })}
                 />
+              </label>
+              <label>
+                LABEL ITEM
+                <div className="icon-select">
+                  {edgeIcon ? (
+                    <NodeIcon name={edgeIcon} size={16} />
+                  ) : (
+                    <span className="icon-none" />
+                  )}
+                  <select
+                    aria-label="Label item"
+                    value={edgeIcon}
+                    onChange={(e) => {
+                      const { icon: _i, ...rest } = edge.data;
+                      updateEdge(edge.id, {
+                        data: e.target.value ? { ...rest, icon: e.target.value } : rest,
+                      });
+                    }}
+                  >
+                    <option value="">None</option>
+                    {labelItems.map(([icon, label]) => (
+                      <option key={icon} value={icon}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </label>
               <label>
                 LINE STYLE

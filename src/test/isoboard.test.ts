@@ -225,6 +225,9 @@ describe("Connectors: routes, labels and step numbers", () => {
     const gap = Math.abs(lay[0]!.points[0]!.y - lay[1]!.points.at(-1)!.y);
     expect(gap).toBeGreaterThan(5);
     expect(LANE).toBeGreaterThan(0.2);
+    // An item icon widens the tag; on its own it is a round sticker.
+    const iconed = layoutEdges([a, c], [{ ...edge("e3", "a", "c"), data: { icon: "Kafka" } }]);
+    expect(iconed[0]!.tag).toMatchObject({ icon: "Kafka", textW: 22 });
     expect(presentableEdges([a, c], [edge("e1", "a", "c"), edge("x", "a", "gone")])).toHaveLength(
       1,
     );

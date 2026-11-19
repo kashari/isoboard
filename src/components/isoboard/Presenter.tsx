@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
 import { presentableEdges } from "@/lib/routing";
 import { edgeText } from "@/lib/logic";
+import { NodeIcon } from "@/nodes/NodeSolid";
 
 type Tool = "pointer" | "laser" | "ink";
 type Pt = { x: number; y: number; t: number };
@@ -149,6 +150,7 @@ export function Presenter() {
   const name = (id: string) => diagram.nodes.find((n) => n.id === id)?.label || "Untitled";
   const note = edge ? String(edge.data["note"] ?? "").trim() : "";
   const label = edge ? edgeText(edge).trim() : "";
+  const icon = edge ? String(edge.data["icon"] ?? "") : "";
 
   return (
     <div
@@ -271,9 +273,14 @@ export function Presenter() {
                   <ArrowRight className="pres-arrow" size={18} strokeWidth={2.6} />
                   <strong>{name(edge.to)}</strong>
                 </div>
-                {(label || note) && (
+                {(label || icon || note) && (
                   <div className="pres-text">
-                    {label && <span className="pres-label">{label}</span>}
+                    {(label || icon) && (
+                      <span className="pres-label">
+                        {icon && <NodeIcon name={icon} size={15} />}
+                        {label}
+                      </span>
+                    )}
                     {note && <span>{note}</span>}
                   </div>
                 )}
