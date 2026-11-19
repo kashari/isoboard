@@ -2104,7 +2104,7 @@ kbd {
   position: absolute;
   left: 0;
   right: 0;
-  top: 7vh;
+  top: 26px;
   text-align: center;
   pointer-events: none;
   animation: pres-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -2117,8 +2117,8 @@ kbd {
   color: var(--muted-foreground);
 }
 .pres-title h1 {
-  margin: 10px 0 8px;
-  font-size: clamp(26px, 4vw, 46px);
+  margin: 8px 0 6px;
+  font-size: clamp(22px, 3vw, 38px);
   font-weight: 800;
   letter-spacing: -0.02em;
 }

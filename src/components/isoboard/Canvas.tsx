@@ -117,6 +117,7 @@ export function Canvas() {
   const flowRef = useRef<SVGGElement>(null);
   const sceneRef = useRef<SVGGElement>(null);
   const flight = useRef(0);
+  const introUntil = useRef(0);
   // During pan/zoom the live transform lives in `viewport` and is written straight to the DOM;
   // the store only receives it when the gesture ends. Adopt the store value whenever it changes
   // from outside (project switch, undo/redo).
@@ -388,8 +389,10 @@ export function Canvas() {
   const step = presentation?.step ?? 0;
   const finale = presenting && steps.length > 0 && step > steps.length;
   const current = presenting && step >= 1 && step <= steps.length ? steps[step - 1]! : null;
+  // The overview (step 0) and the summary show every connector; steps reveal them in order.
+  const full = finale || (presenting && step === 0);
   const shown = new Set(
-    presenting ? (finale ? steps : steps.slice(0, Math.max(0, step))).map((e) => e.id) : [],
+    presenting ? (full ? steps : steps.slice(0, Math.max(0, step))).map((e) => e.id) : [],
   );
   const focusIds = new Set(current ? [current.from, current.to] : []);
   const seenIds = new Set(steps.slice(0, Math.max(0, step - 1)).flatMap((e) => [e.from, e.to]));
@@ -407,7 +410,7 @@ export function Canvas() {
     override: segDrag && { id: segDrag.id, route: segDrag.route },
   }).filter((l) => !presenting || shown.has(l.edge.id));
   const edgeState = (id: string) =>
-    !presenting || finale || !current ? "" : id === current.id ? "pres-current" : "pres-past";
+    !presenting || full || !current ? "" : id === current.id ? "pres-current" : "pres-past";
 
   // Fly the camera to the connector on stage (or the whole diagram), and back afterwards.
   const followKey = presenting
@@ -441,7 +444,7 @@ export function Canvas() {
     const st = s.presentation?.step ?? 0;
     const on = s.presentation?.follow && st >= 1 && st <= all.length ? all[st - 1] : null;
     let box = frameOf(s.diagram.nodes);
-    let maxZoom = 1.25;
+    let maxZoom = 1.8;
     if (on) {
       const ends = s.diagram.nodes.filter((n) => n.id === on.from || n.id === on.to);
       const route = layoutEdges(s.diagram.nodes, [on])[0];
@@ -450,13 +453,13 @@ export function Canvas() {
     }
     const { width, height } = svg.getBoundingClientRect();
     // Leave room for the title (overview) or the caption (steps).
-    const top = st === 0 ? 230 : 40,
-      bottom = st === 0 ? 90 : 190;
+    const top = st === 0 ? 150 : 40,
+      bottom = st === 0 ? 70 : 190;
     const k = Math.max(
       0.3,
       Math.min(
         maxZoom,
-        (width - 160) / (box.x1 - box.x0),
+        (width - 100) / (box.x1 - box.x0),
         (height - top - bottom) / (box.y1 - box.y0),
       ),
     );
@@ -465,12 +468,23 @@ export function Canvas() {
       y: (top + height - bottom) / 2 - ((box.y0 + box.y1) / 2) * k,
       zoom: k,
     };
-    const from = { ...viewport.current };
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const now0 = performance.now();
     const first = !lastKey.current;
     const resized = lastKey.current === followKey;
     lastKey.current = followKey;
-    const duration =
-      first || resized || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900;
+    // Opening the presentation zooms in on the overview; a resize (e.g. entering full screen)
+    // during that intro restarts it on the new frame instead of jumping.
+    const intro = !reduced && (first || (resized && now0 < introUntil.current));
+    if (first) introUntil.current = now0 + 600;
+    const from = intro
+      ? {
+          zoom: to.zoom * 0.45,
+          x: width / 2 - (width / 2 - to.x) * 0.45,
+          y: height / 2 - (height / 2 - to.y) * 0.45,
+        }
+      : { ...viewport.current };
+    const duration = intro ? 1500 : resized || reduced ? 0 : 900;
     const t0 = performance.now();
     const tick = (now: number) => {
       const t = duration ? Math.min(1, (now - t0) / duration) : 1;
@@ -494,7 +508,7 @@ export function Canvas() {
   const zones = depthSort(nodes).filter((n) => n.type === "zone");
   const blocks = depthSort(nodes).filter((n) => n.type !== "zone");
   const selectedLayout = layouts.find((l) => l.edge.id === selectedEdge);
-  const showTag = (l: EdgeLayout) => !presenting || finale || l.edge.id === current?.id;
+  const showTag = (l: EdgeLayout) => !presenting || full || l.edge.id === current?.id;
   const connectFrom = connecting ? nodes.find((n) => n.id === connecting) : undefined;
   return (
     <main className={`canvas-area tool-${tool} ${presenting ? "presenting" : ""}`}>
@@ -605,7 +619,7 @@ export function Canvas() {
         }}
       >
         <g ref={sceneRef} transform={transformAttr(viewport.current)}>
-          {grid && !presenting && (
+          {grid && (
             <path
               ref={gridRef}
               className="iso-grid"
