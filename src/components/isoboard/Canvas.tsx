@@ -32,6 +32,7 @@ import {
   type Route,
 } from "@/lib/routing";
 import { ValidationPanel } from "./ValidationPanel";
+import { openDiagram } from "./file-actions";
 import type { Node, NodeType } from "@/types/diagram";
 
 // The grid never changes, so build it once as a single path. It spans ±GRID cells on both
@@ -576,6 +577,12 @@ export function Canvas() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
+          // A dropped .isoboard / .json file opens that diagram.
+          const file = e.dataTransfer.files[0];
+          if (file && /\.(isoboard|json)$/i.test(file.name)) {
+            void openDiagram(file);
+            return;
+          }
           const type = e.dataTransfer.getData("isoboard-node") as NodeType;
           const entry = registry[type];
           if (!entry) return;

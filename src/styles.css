@@ -2284,3 +2284,134 @@ kbd {
     animation: none;
   }
 }
+
+/* ── File menu, export dialog and notices ───────────────────────────── */
+.export-menu kbd {
+  margin-left: auto;
+}
+.export-button svg {
+  width: 15px;
+}
+.export-dialog {
+  width: 440px;
+  max-width: 100%;
+  padding: 18px 20px 18px;
+  box-shadow: var(--shadow-hard);
+  display: grid;
+  gap: 16px;
+}
+.export-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.export-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+.export-field {
+  display: grid;
+  gap: 7px;
+}
+.export-field > span {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+}
+.export-field small {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.export-formats,
+.export-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.export-formats button,
+.export-seg button {
+  height: 30px;
+  padding: 0 11px;
+  border: 1.5px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--background);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.export-seg button {
+  flex: 1;
+}
+.export-formats button:hover,
+.export-seg button:hover {
+  border-color: var(--foreground);
+}
+.export-formats button[aria-checked="true"],
+.export-seg button[aria-checked="true"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+  color: var(--background);
+}
+.export-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.export-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--foreground);
+}
+.export-check small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+}
+.export-check.disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.export-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.export-size {
+  margin-right: auto;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+}
+.notice {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: var(--shadow-hard);
+  transform: translateX(-50%);
+  animation: notice-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.notice svg {
+  color: oklch(0.55 0.13 150);
+}
+.notice-error svg {
+  color: var(--node-peach);
+}
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}

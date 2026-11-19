@@ -23,6 +23,8 @@ import {
 } from "@/lib/routing";
 import { makeDemo } from "@/lib/demo";
 import { importDiagram } from "@/lib/import-diagram";
+import { serializeDiagram, fileName } from "@/lib/file-io";
+import { pdfBytes } from "@/lib/export-view";
 import { useDiagram, newId, emptyDiagram } from "@/store/diagram";
 
 describe("Isometric grid rules", () => {
@@ -266,5 +268,31 @@ describe("Connectors: routes, labels and step numbers", () => {
       route: { start: "x", stops: [3, 15] },
     });
     expect(shiftRoute({}, 1, 1)).toEqual({});
+  });
+});
+
+describe("Files and export formats", () => {
+  it("reads .isoboard files (with envelope) and plain JSON alike", () => {
+    const demo = makeDemo();
+    expect(importDiagram(serializeDiagram(demo))).toEqual(demo);
+    expect(importDiagram(JSON.stringify(demo))).toEqual(demo);
+    expect(JSON.parse(serializeDiagram(demo)).format).toBe("isoboard");
+  });
+  it("makes file names that are safe on every OS", () => {
+    expect(fileName('A/B: "c"?', ".isoboard")).toBe("A-B- -c-.isoboard");
+    expect(fileName("  ", ".png")).toBe("diagram.png");
+  });
+  it("writes a valid one-page PDF around a JPEG", () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 1, 2, 3, 0xff, 0xd9]);
+    const pdf = pdfBytes(jpeg, 40, 20, 30, 15);
+    const text = new TextDecoder("latin1").decode(pdf);
+    expect(text.startsWith("%PDF-1.4")).toBe(true);
+    expect(text).toContain("/MediaBox [0 0 30.00 15.00]");
+    expect(text.trimEnd().endsWith("%%EOF")).toBe(true);
+    // Every xref offset points at its object.
+    const xref = text.slice(text.indexOf("xref"));
+    const offsets = [...xref.matchAll(/(\d{10}) 00000 n/g)].map((m) => Number(m[1]));
+    offsets.forEach((o, i) => expect(text.slice(o, o + 7)).toBe(`${i + 1} 0 obj`));
+    expect(Number(/startxref\n(\d+)/.exec(text)![1])).toBe(text.indexOf("xref"));
   });
 });

@@ -7,6 +7,9 @@ import { toggleFullscreen } from "@/lib/fullscreen";
 import { Projects } from "./Projects";
 import { CommandPalette } from "./CommandPalette";
 import { Presenter } from "./Presenter";
+import { ExportDialog } from "./ExportDialog";
+import { Notice } from "./Notice";
+import { saveDiagram, openDiagram } from "./file-actions";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
@@ -14,6 +17,7 @@ import type { Node, Edge } from "@/types/diagram";
 export function Editor() {
   const [projects, setProjects] = useState(false);
   const [command, setCommand] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [ready, setReady] = useState(false);
   // Layout: the palette can be hidden ([), focus mode (F) leaves only the canvas.
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -49,6 +53,25 @@ export function Editor() {
   }, [diagram, ready]);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
+      // File shortcuts work everywhere, even while typing in a field.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !useDiagram.getState().presentation) {
+        const k = e.key.toLowerCase();
+        if (k === "s") {
+          e.preventDefault();
+          void saveDiagram(e.shiftKey);
+          return;
+        }
+        if (k === "o") {
+          e.preventDefault();
+          void openDiagram();
+          return;
+        }
+        if (k === "e") {
+          e.preventDefault();
+          setExporting(true);
+          return;
+        }
+      }
       const target = e.target;
       if (
         target instanceof HTMLInputElement ||
@@ -68,6 +91,7 @@ export function Editor() {
       if (e.key === "Escape") {
         setCommand(false);
         setProjects(false);
+        setExporting(false);
         setFocus(false);
         s.select([]);
       }
@@ -178,6 +202,7 @@ export function Editor() {
           useDiagram.getState().save();
           setProjects(true);
         }}
+        onExport={() => setExporting(true)}
       />
       <div
         className={[
@@ -203,6 +228,8 @@ export function Editor() {
         )}
       </div>
       {presentation && <Presenter />}
+      {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      <Notice />
       {projects && <Projects onClose={() => setProjects(false)} />}{" "}
       {command && (
         <CommandPalette onClose={() => setCommand(false)} onProjects={() => setProjects(true)} />

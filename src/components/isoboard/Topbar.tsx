@@ -1,15 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Undo2,
   Redo2,
   ChevronDown,
-  Check,
   FolderOpen,
-  Download,
-  Upload,
-  FileJson,
-  Image,
-  FileImage,
+  Save,
+  SaveAll,
+  FolderInput,
+  ImageDown,
   Presentation,
   Maximize,
   Minimize,
@@ -17,8 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
 import { toggleFullscreen } from "@/lib/fullscreen";
-import { importDiagram } from "@/lib/import-diagram";
-import { snapshotCanvas, snapshotToPng } from "@/lib/export-view";
+import { saveDiagram, openDiagram } from "./file-actions";
 export function Logo() {
   return (
     <div className="brand">
@@ -35,20 +32,6 @@ export function Logo() {
     </div>
   );
 }
-export function downloadFile(content: string | Blob, name: string, type: string) {
-  const url = URL.createObjectURL(
-    content instanceof Blob ? content : new Blob([content], { type }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-/**
- * The top bar keeps only what you reach for: the project, the mode, undo/redo, export and
- * Present. Everything else lives behind shortcuts (⌘K search, [ palette, F focus).
- */
 function useFullscreen() {
   const [full, setFull] = useState(false);
   useEffect(() => {
@@ -59,29 +42,10 @@ function useFullscreen() {
   }, []);
   return full;
 }
-export function Topbar({ onProjects }: { onProjects: () => void }) {
+export function Topbar({ onProjects, onExport }: { onProjects: () => void; onExport: () => void }) {
   const full = useFullscreen();
   const { diagram, past, future, undo, redo, saved, commit, mode, setMode } = useDiagram();
   const [menu, setMenu] = useState(false);
-  const [error, setError] = useState("");
-  const input = useRef<HTMLInputElement>(null);
-  const [exporting, setExporting] = useState(false);
-  /** Exports exactly the current canvas view (see lib/export-view). */
-  async function exportView(format: "svg" | "png") {
-    const svg = document.querySelector<SVGSVGElement>(".diagram-canvas");
-    if (!svg || exporting) return;
-    setExporting(true);
-    try {
-      const snapshot = await snapshotCanvas(svg);
-      if (format === "svg") downloadFile(snapshot.svg, diagram.name + ".svg", "image/svg+xml");
-      else downloadFile(await snapshotToPng(snapshot, 3), diagram.name + ".png", "image/png");
-      setMenu(false);
-    } catch {
-      setError("Export failed — please try again.");
-    } finally {
-      setExporting(false);
-    }
-  }
   return (
     <header className="topbar">
       <Button variant="ghost" className="brand-button" onClick={onProjects} title="Open projects">
@@ -155,62 +119,49 @@ export function Topbar({ onProjects }: { onProjects: () => void }) {
         </div>
         <div className="export-wrapper">
           <Button variant="outline" onClick={() => setMenu(!menu)} className="export-button">
-            Export
+            File
             <ChevronDown size={12} />
           </Button>
           {menu && (
             <>
               <div className="menu-backdrop" onClick={() => setMenu(false)} />
-              <div className="export-menu panel">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    downloadFile(
-                      JSON.stringify(diagram, null, 2),
-                      diagram.name + ".json",
-                      "application/json",
-                    );
-                    setMenu(false);
-                  }}
-                >
-                  <FileJson />
-                  Export JSON
-                  <Download size={13} />
-                </Button>
-                <Button variant="ghost" disabled={exporting} onClick={() => void exportView("png")}>
-                  <Image />
-                  Export PNG (3×)
-                  <Download size={13} />
-                </Button>
-                <Button variant="ghost" disabled={exporting} onClick={() => void exportView("svg")}>
-                  <FileImage />
-                  Export SVG
-                  <Download size={13} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    input.current?.click();
-                    setMenu(false);
-                  }}
-                >
-                  <Upload />
-                  Import JSON
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    onProjects();
-                    setMenu(false);
-                  }}
-                >
-                  <FolderOpen />
-                  My projects
-                </Button>
+              <div className="export-menu panel" role="menu">
+                {(
+                  [
+                    [FolderInput, "Open…", "Ctrl O", () => void openDiagram()],
+                    [Save, "Save to device", "Ctrl S", () => void saveDiagram()],
+                    [SaveAll, "Save as…", "Ctrl ⇧ S", () => void saveDiagram(true)],
+                    [ImageDown, "Export…", "Ctrl E", onExport],
+                    [FolderOpen, "My projects", "", onProjects],
+                  ] as const
+                ).map(([Icon, label, keys, action]) => (
+                  <Button
+                    key={label}
+                    variant="ghost"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      action();
+                    }}
+                  >
+                    <Icon />
+                    {label}
+                    {keys && <kbd>{keys}</kbd>}
+                  </Button>
+                ))}
               </div>
             </>
           )}
         </div>
+        <Button
+          variant="outline"
+          className="export-button"
+          onClick={onExport}
+          title="Export (Ctrl E)"
+        >
+          <ImageDown />
+          Export
+        </Button>
         <Button
           className="present-button"
           title="Present (P)"
@@ -220,34 +171,6 @@ export function Topbar({ onProjects }: { onProjects: () => void }) {
           Present
         </Button>
       </div>
-      <input
-        ref={input}
-        type="file"
-        accept=".json,application/json"
-        className="hidden"
-        aria-label="Import diagram"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const diagram = importDiagram(await file.text());
-            useDiagram.getState().open(diagram);
-            setError("");
-          } catch {
-            setError("This file is not a valid Isoboard diagram.");
-          }
-          e.target.value = "";
-        }}
-      />
-      {error && (
-        <div className="import-error" role="alert">
-          {error}
-          <Button variant="ghost" onClick={() => setError("")}>
-            Dismiss
-            <Check />
-          </Button>
-        </div>
-      )}
     </header>
   );
 }

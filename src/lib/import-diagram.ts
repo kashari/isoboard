@@ -31,8 +31,14 @@ const schema = z.object({
   viewport: z.object({ x: z.number(), y: z.number(), zoom: z.number().min(0.25).max(2.5) }),
   steps: z.boolean().optional(),
 });
+/** Parses a diagram from a `.isoboard` file (`{ format: "isoboard", diagram }`) or plain JSON. */
 export function importDiagram(text: string): Diagram {
-  const diagram = schema.parse(JSON.parse(text));
+  const raw: unknown = JSON.parse(text);
+  const body =
+    raw && typeof raw === "object" && (raw as { format?: unknown }).format === "isoboard"
+      ? (raw as { diagram?: unknown }).diagram
+      : raw;
+  const diagram = schema.parse(body);
   const ids = new Set(diagram.nodes.map((n) => n.id));
   if (
     ids.size !== diagram.nodes.length ||

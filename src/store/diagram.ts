@@ -15,6 +15,9 @@ interface State {
   present: (step?: number) => void;
   setPresentation: (patch: Partial<{ step: number; follow: boolean }>) => void;
   stopPresenting: () => void;
+  /** A short message shown as a toast (file saved, opened, exported…). */
+  notice: { text: string; error?: boolean; id: number } | null;
+  notify: (text: string, error?: boolean) => void;
   saved: boolean;
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -74,6 +77,8 @@ export const useDiagram = create<State>((set, get) => ({
   setPresentation: (patch) =>
     set((s) => (s.presentation ? { presentation: { ...s.presentation, ...patch } } : {})),
   stopPresenting: () => set({ presentation: null }),
+  notice: null,
+  notify: (text, error = false) => set({ notice: { text, error, id: Date.now() } }),
   saved: true,
   mode: "architecture",
   setMode: (mode) => {

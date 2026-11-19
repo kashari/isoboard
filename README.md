@@ -61,12 +61,26 @@ connector in the inspector to show it in the caption.
 
 The controls hide themselves when the mouse rests.
 
-**Export** gives you exactly what is on the canvas, in the same view:
+## Files and export
 
-- **PNG (3×)**: a high-resolution image.
-- **SVG**: a standalone vector file with its colours and font embedded. It opens the same in
-  any viewer.
-- **JSON**: a diagram file you can import again later.
+**File → Save to device** (Ctrl/⌘ S) writes an editable `.isoboard` file. In Chrome and Edge
+later saves go straight back to the same file; elsewhere the file is downloaded.
+**Save as…** (Ctrl/⌘ Shift S) picks a new file, and **Open…** (Ctrl/⌘ O) or dropping a
+`.isoboard` / `.json` file on the canvas opens it.
+
+**Export** (Ctrl/⌘ E) renders exactly what you see, in these formats:
+
+| Format | Notes |
+| --- | --- |
+| PNG | 1×, 2×, 3× or 4×; optional transparent background |
+| JPG | 1×–4×, small files for chats and email |
+| WebP | 1×–4×, small and sharp, optional transparency |
+| SVG | Vector, with colours and font embedded |
+| PDF | One page, sized to the diagram |
+| ISOBOARD / JSON | Editable diagram data |
+
+Choose **Current view** or **Whole diagram** (everything, at 100% zoom), and **Copy** puts a
+PNG on the clipboard.
 
 Projects are autosaved to this browser's local storage. Open **My projects** to create,
 rename, duplicate or delete them.
