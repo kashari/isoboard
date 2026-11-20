@@ -102,6 +102,8 @@ describe("Logic validation", () => {
       data: { icon: "Zap" },
     });
     expect(defaultEdge(n("a", "state"), [], n("r", "receive")).kind).toBe("signal");
+    // Leaving an orthogonal state is still a transition; only orthogonal → region is containment.
+    expect(defaultEdge(n("o", "orthogonal"), [], n("i", "state")).kind).toBe("transition");
     // Orthogonal → region is containment, drawn dotted.
     expect(defaultEdge(n("o", "orthogonal"), [], n("r", "region"))).toMatchObject({
       kind: "plain",

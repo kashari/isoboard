@@ -19,8 +19,6 @@ export const STATE_TYPES: NodeType[] = [
   "receive",
   "submachine",
 ];
-/** Containers: an orthogonal state holds regions, a region holds its own little machine. */
-const CONTAINER_TYPES: NodeType[] = ["orthogonal", "region"];
 /** Where a machine can start, and where it must stop. */
 const START_TYPES: NodeType[] = ["initial", "entry"];
 const END_TYPES: NodeType[] = ["final", "terminate"];
@@ -50,7 +48,7 @@ export function defaultEdge(
   if (from?.type === "send" || to?.type === "receive")
     return { label: "event", kind: "signal", style: "dashed", data: { icon: "Zap" } };
   // Orthogonal state → its regions, region → its sub-states: containment, not a transition.
-  if (from && CONTAINER_TYPES.includes(from.type))
+  if (from?.type === "region" || (from?.type === "orthogonal" && to?.type === "region"))
     return { label: "", kind: "plain", style: "dotted" };
   // Anything touching a state (e.g. Event → State) is a transition.
   if ([from, to].some((n) => n && STATE_TYPES.includes(n.type)))
