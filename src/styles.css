@@ -2578,9 +2578,6 @@ kbd {
   stroke: var(--node-face-ink);
   stroke-width: 1.6;
 }
-.kid-user .kid-line-light {
-  stroke: var(--node-paper);
-}
 .kid-user .kid-headset {
   fill: none;
   stroke: var(--node-ink);

@@ -302,7 +302,7 @@ interface Look {
   beard?: boolean;
 }
 const LOOKS: Record<string, Look> = {
-  man: { scale: 1, hair: "neat", tone: "dark", skin: "tan", outfit: "tie", beard: true },
+  man: { scale: 1, hair: "neat", tone: "dark", skin: "tan", outfit: "tie" },
   woman: { scale: 1, hair: "long", tone: "brown", skin: "brown", outfit: "dress" },
   boy: { scale: 0.84, hair: "cap", tone: "blond", skin: "light", outfit: "shirt" },
   girl: { scale: 0.84, hair: "pigtails", tone: "red", skin: "light", outfit: "dress" },
@@ -436,14 +436,11 @@ function Figure({ look }: { look: Look }) {
           />
         </>
       )}
+      {/* A full beard from the sideburns down over the chest, open around the mouth. */}
       {look.beard && (
         <path
           className={hairCls}
-          d={
-            hair === "elder"
-              ? "M -13 -42 C -12 -28 12 -28 13 -42 C 8 -37 -8 -37 -13 -42 Z"
-              : "M -13.5 -43 C -12 -32 12 -32 13.5 -43 C 9 -38 -9 -38 -13.5 -43 Z"
-          }
+          d="M -14.9 -44 C -15.5 -31 -9 -23 0 -23 C 9 -23 15.5 -31 14.9 -44 C 13 -40 11 -37 8 -36.5 C 4 -34 -4 -34 -8 -36.5 C -11 -37 -13 -40 -14.9 -44 Z"
         />
       )}
       {!look.beard && (
@@ -460,10 +457,14 @@ function Figure({ look }: { look: Look }) {
           d="M -10.5 -45 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0 M 0.5 -45 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0 M -0.5 -45.5 L 0.5 -45.5"
         />
       )}
-      <path
-        className={look.beard ? "kid-line kid-line-light" : "kid-line"}
-        d="M -4.5 -39 Q 0 -35.5 4.5 -39"
-      />
+      {look.beard ? (
+        <path
+          className={hairCls}
+          d="M 0 -39.6 C -3 -41.6 -8 -40.8 -9 -37 C -6 -38.4 -2.5 -38.1 0 -37.1 C 2.5 -38.1 6 -38.4 9 -37 C 8 -40.8 3 -41.6 0 -39.6 Z"
+        />
+      ) : (
+        <path className="kid-line" d="M -4.5 -39 Q 0 -35.5 4.5 -39" />
+      )}
       {hair === "headset" && (
         <>
           <path className="kid-headset" d="M -16 -46 C -17 -68 17 -68 16 -46" />
