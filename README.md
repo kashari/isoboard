@@ -42,8 +42,12 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 | Quick search | Ctrl/⌘ K |
 | Play / pause flow animation | Tap Space |
 
-Connectors start plain (no label). Each one gets its own lane when it shares a line with
-others, and arrowheads are always drawn on top, so they never hide behind a block.
+Connectors start plain (no label) and find their own way: they route around blocks and their
+names, keep off each other's tracks, leave and enter blocks straight, and arrive at a block's
+front when they can. They re-route live as you move blocks. Where lines still share a track,
+each gets its own lane, ordered so they peel off without crossing. Arrowheads are always drawn
+on top, so they never hide behind a block. A connector you re-route by hand keeps its path,
+and the others route around it.
 
 ## Presenting
 

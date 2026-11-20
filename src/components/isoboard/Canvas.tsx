@@ -24,7 +24,8 @@ import {
   setSegment,
   slideAxis,
   normalizeRoute,
-  autoRoute,
+  autoRoutes,
+  sameRoute,
   shiftRoute,
   presentableEdges,
   segmentDistance,
@@ -313,9 +314,12 @@ export function Canvas() {
             const { bend: _bend, route: _route, ...rest } = edge.data;
             if (!a || !b) return edge;
             const clean = normalizeRoute(a, b, route);
-            // Dragged back to the default L: no custom route needed.
-            const auto = autoRoute(a, b, d.nodes);
-            const isAuto = !clean.stops.length && clean.start === auto.start;
+            // Dragged back onto the default path: no custom route needed.
+            const auto = autoRoutes(
+              d.nodes,
+              d.edges.map((e) => (e.id === id ? { ...e, data: rest } : e)),
+            ).get(id);
+            const isAuto = !!auto && sameRoute(a, b, clean, auto);
             return { ...edge, data: isAuto ? rest : { ...rest, route: clean } };
           }),
         }));

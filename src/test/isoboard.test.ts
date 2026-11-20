@@ -20,6 +20,9 @@ import {
   layoutEdges,
   presentableEdges,
   LANE,
+  autoRoutes,
+  cellsToRoute,
+  laneOffsets,
 } from "@/lib/routing";
 import { makeDemo } from "@/lib/demo";
 import { importDiagram } from "@/lib/import-diagram";
@@ -181,6 +184,62 @@ describe("Connectors: routes, labels and step numbers", () => {
     const wall = at("wall", 4, 0);
     expect(autoRoute(a, b, [a, b, wall]).start).toBe("y");
     expect(autoRoute(a, b, [a, b]).start).toBe("x");
+  });
+  it("finds a path around blocks instead of through them", () => {
+    // A wall right between two aligned blocks: the straight line would run through it.
+    const c = at("c", 8, 0),
+      wall = at("wall", 4, 0);
+    const corners = routeCorners(a, c, autoRoute(a, c, [a, c, wall]));
+    expect(corners.length).toBeGreaterThan(3);
+    const cells: { gx: number; gy: number }[] = [];
+    corners.slice(1).forEach((q, i) => {
+      const p = corners[i]!;
+      for (let k = 0; k <= Math.abs(q.gx - p.gx) + Math.abs(q.gy - p.gy); k++)
+        cells.push({
+          gx: p.gx + Math.sign(q.gx - p.gx) * k,
+          gy: p.gy + Math.sign(q.gy - p.gy) * k,
+        });
+    });
+    expect(cells.some((p) => Math.abs(p.gx - 4) <= 1 && Math.abs(p.gy) <= 1)).toBe(false);
+    // Paths of cells turn into routes with one stop per inner corner.
+    expect(
+      cellsToRoute([
+        { gx: 0, gy: 0 },
+        { gx: 1, gy: 0 },
+        { gx: 1, gy: 1 },
+        { gx: 1, gy: 2 },
+        { gx: 2, gy: 2 },
+      ]),
+    ).toEqual({ start: "x", stops: [1] });
+  });
+  it("routes connectors together, each on a path of its own", () => {
+    const edge = (id: string, from: string, to: string) => ({
+      id,
+      from,
+      to,
+      label: "",
+      style: "solid" as const,
+      kind: "plain" as const,
+      data: {},
+    });
+    const c = at("c", 8, 0);
+    // A custom route is kept; the others are routed around the board.
+    const custom = { ...edge("e2", "c", "a"), data: { route: { start: "y", stops: [3] } } };
+    const routes = autoRoutes([a, b, c], [edge("e1", "a", "c"), custom, edge("e3", "a", "b")]);
+    expect([...routes.keys()]).toEqual(["e3", "e1"]);
+    // Two lines sharing a track peel off without crossing: the one turning first (towards +gy)
+    // sits on the +gy side.
+    const seg = (p: [number, number], q: [number, number]) => ({
+      axis: (p[1] === q[1] ? "x" : "y") as "x" | "y",
+      p: { gx: p[0], gy: p[1] },
+      q: { gx: q[0], gy: q[1] },
+      js: [0],
+    });
+    const [early, late] = laneOffsets([
+      [seg([0, 0], [5, 0]), seg([5, 0], [5, 4])],
+      [seg([0, 0], [8, 0]), seg([8, 0], [8, 4])],
+    ]);
+    expect(early![0]).toBeGreaterThan(late![0]!);
   });
   it("drags any segment sideways, including the anchored end ones", () => {
     const l = { start: "x" as const, stops: [] };

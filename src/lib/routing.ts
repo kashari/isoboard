@@ -9,6 +9,7 @@ import {
   type Point,
 } from "./isometric";
 import { edgeText } from "./logic";
+import { Field } from "./router";
 
 /**
  * Connector routing. A route runs along the iso axes from block `a` to block `b`:
@@ -103,42 +104,84 @@ export function normalizeRoute(a: Cell, b: Cell, r: Route): Route {
 }
 
 type Block = Pick<Node, "id" | "gx" | "gy" | "type">;
-/** How many blocks (other than its ends) a route runs through. */
-function crossings(segs: Segment[], blocks: Block[], skip: string[]) {
-  let n = 0;
-  for (const block of blocks) {
-    if (block.type === "zone" || skip.includes(block.id)) continue;
-    for (const s of segs) {
-      const lo = Math.min(coord(s.p, s.axis), coord(s.q, s.axis)) - 0.6;
-      const hi = Math.max(coord(s.p, s.axis), coord(s.q, s.axis)) + 0.6;
-      const along = coord(block, s.axis),
-        perp = coord(block, flip(s.axis));
-      if (along > lo && along < hi && Math.abs(perp - coord(s.p, flip(s.axis))) < 0.75) {
-        n++;
-        break;
-      }
-    }
+
+/** A route that follows a path of cells (consecutive, axis-aligned). */
+export function cellsToRoute(path: Cell[]): Route {
+  const segs: { axis: Axis; q: Cell }[] = [];
+  for (let k = 1; k < path.length; k++) {
+    const p = path[k - 1]!,
+      q = path[k]!;
+    const axis: Axis = p.gy === q.gy ? "x" : "y";
+    const last = segs.at(-1);
+    if (last && last.axis === axis) last.q = q;
+    else segs.push({ axis, q });
   }
-  return n;
+  if (segs.length <= 2) return { start: segs[0]?.axis ?? "x", stops: [] };
+  return { start: segs[0]!.axis, stops: segs.slice(0, -2).map((s) => coord(s.q, s.axis)) };
 }
-/** Screen direction (dy) of a route's last segment: > 0 means it arrives from behind the block. */
-function arrivesFromBehind(segs: Segment[]) {
-  const s = segs.at(-1);
-  if (!s) return false;
-  return project(s.q.gx, s.q.gy).y - project(s.p.gx, s.p.gy).y > 0;
-}
+
+const solid = (blocks: Block[]) => blocks.filter((n) => n.type !== "zone");
+const lRoute = (a: Cell, b: Cell): Route => ({
+  start: a.gy === b.gy || a.gx !== b.gx ? "x" : "y",
+  stops: [],
+});
+
 /**
- * The default L route: of the two L shapes, the one that runs through fewer blocks and,
- * on a tie, arrives at the target from the front so the arrowhead is never hidden.
+ * The default route for one connector on its own: the cheapest path around the blocks in the way
+ * (see lib/router), arriving at the front of the target when that is cheap.
  */
 export function autoRoute(a: Block, b: Block, blocks: Block[] = []): Route {
-  if (a.gy === b.gy) return { start: "x", stops: [] };
-  if (a.gx === b.gx) return { start: "y", stops: [] };
-  const score = (start: Axis) => {
-    const segs = routeSegments(a, b, { start, stops: [] });
-    return crossings(segs, blocks, [a.id, b.id]) * 10 + (arrivesFromBehind(segs) ? 3 : 0);
-  };
-  return score("x") <= score("y") ? { start: "x", stops: [] } : { start: "y", stops: [] };
+  const all = solid(blocks);
+  const field = new Field(all.some((n) => n.id === a.id) ? all : [...all, a, b], [a, b]);
+  const path = field.route(a, b);
+  return path ? cellsToRoute(path) : lRoute(a, b);
+}
+
+let memo: { key: string; routes: Map<string, Route> } | null = null;
+/**
+ * Default routes of every connector without a custom one, routed together so they share the
+ * board: custom routes are laid down first, then the rest from shortest to longest, each one
+ * steering clear of the tracks already there.
+ */
+export function autoRoutes(nodes: Block[], edges: Edge[]): Map<string, Route> {
+  const blocks = solid(nodes);
+  const key =
+    blocks.map((n) => `${n.id}:${n.gx}:${n.gy}`).join("|") +
+    "#" +
+    edges
+      .map(
+        (e) =>
+          `${e.id}:${e.from}:${e.to}:${JSON.stringify(e.data["route"] ?? e.data["bend"] ?? "")}`,
+      )
+      .join("|");
+  if (memo?.key === key) return memo.routes;
+  const byId = new Map(blocks.map((n) => [n.id, n]));
+  const field = new Field(blocks);
+  const routes = new Map<string, Route>();
+  const pending: { e: Edge; a: Block; b: Block; len: number; i: number }[] = [];
+  edges.forEach((e, i) => {
+    const a = byId.get(e.from),
+      b = byId.get(e.to);
+    if (!a || !b || (a.gx === b.gx && a.gy === b.gy)) return;
+    const stored = readRoute(e.data);
+    if (stored) field.occupy(routeCorners(a, b, stored));
+    else pending.push({ e, a, b, i, len: Math.abs(a.gx - b.gx) + Math.abs(a.gy - b.gy) });
+  });
+  pending.sort((p, q) => p.len - q.len || p.i - q.i);
+  for (const { e, a, b } of pending) {
+    const path = field.route(a, b);
+    const route = path ? cellsToRoute(path) : lRoute(a, b);
+    routes.set(e.id, route);
+    field.occupy(routeCorners(a, b, route));
+  }
+  memo = { key, routes };
+  return routes;
+}
+/** Same corners, i.e. the same line on the board. */
+export function sameRoute(a: Cell, b: Cell, r: Route, s: Route) {
+  const p = routeSegments(a, b, r),
+    q = routeSegments(a, b, s);
+  return p.length === q.length && p.every((seg, i) => same(seg.p, q[i]!.p) && same(seg.q, q[i]!.q));
 }
 
 /** Prepares raw segment `j` for dragging; anchored end segments get a stop of their own. */
@@ -174,37 +217,51 @@ export function shiftRoute(data: Record<string, unknown>, dx: number, dy: number
 export const LANE = 0.26;
 /**
  * Lane offset for every segment of every route. Segments on the same grid line whose spans
- * overlap form a cluster; each gets its own lane, centred on the line.
+ * overlap form a cluster and each gets its own lane, centred on the line. Lanes are ordered by
+ * where the lines go next, so parallel connectors peel off without crossing each other: a line
+ * that turns towards +gy sits on the +gy side, and of two turning the same way at the same end,
+ * the one turning first sits nearest that side.
  */
 export function laneOffsets(routes: Segment[][]): number[][] {
   const out = routes.map((segs) => segs.map(() => 0));
-  const groups = new Map<string, { r: number; s: number; lo: number; hi: number }[]>();
+  type Item = { r: number; s: number; lo: number; hi: number; key: number };
+  const groups = new Map<string, Item[]>();
+  const FAR = 1000;
   routes.forEach((segs, r) =>
     segs.forEach((seg, s) => {
-      const key = `${seg.axis}:${coord(seg.p, flip(seg.axis))}`;
+      const across = flip(seg.axis);
+      const line = coord(seg.p, across);
       const a = coord(seg.p, seg.axis),
         b = coord(seg.q, seg.axis);
-      const list = groups.get(key) ?? [];
-      list.push({ r, s, lo: Math.min(a, b), hi: Math.max(a, b) });
-      groups.set(key, list);
+      const lo = Math.min(a, b),
+        hi = Math.max(a, b);
+      // Side (±1) the route comes from at p and goes to at q; 0 at a block.
+      const before = segs[s - 1],
+        after = segs[s + 1];
+      const sideP = before ? Math.sign(coord(before.p, across) - line) : 0;
+      const sideQ = after ? Math.sign(coord(after.q, across) - line) : 0;
+      const [sideLo, sideHi] = a <= b ? [sideP, sideQ] : [sideQ, sideP];
+      const key = sideHi * (FAR - hi) + sideLo * (FAR + lo);
+      const k = `${seg.axis}:${line}`;
+      const list = groups.get(k) ?? [];
+      list.push({ r, s, lo, hi, key });
+      groups.set(k, list);
     }),
   );
   for (const list of groups.values()) {
     if (list.length < 2) continue;
     list.sort((p, q) => p.lo - q.lo || q.hi - p.hi || p.r - q.r);
-    let cluster: typeof list = [];
+    let cluster: Item[] = [];
     let reach = -Infinity;
     const flush = () => {
-      const ends: number[] = [];
-      const lanes = cluster.map((it) => {
-        let l = ends.findIndex((end) => end <= it.lo + 1e-9);
-        if (l < 0) l = ends.push(it.hi) - 1;
-        else ends[l] = it.hi;
-        return l;
-      });
-      cluster.forEach((it, i) => {
-        out[it.r]![it.s] = (lanes[i]! - (ends.length - 1) / 2) * LANE;
-      });
+      if (cluster.length < 2) return;
+      const n = cluster.length;
+      const gap = Math.min(LANE, 1.3 / (n - 1));
+      [...cluster]
+        .sort((p, q) => p.key - q.key || p.r - q.r)
+        .forEach((it, l) => {
+          out[it.r]![it.s] = (l - (n - 1) / 2) * gap;
+        });
     };
     for (const it of list) {
       if (it.lo >= reach - 1e-9 && cluster.length) {
@@ -323,13 +380,16 @@ export function layoutEdges(
   opts: { steps?: boolean; override?: { id: string; route: Route } | null } = {},
 ): EdgeLayout[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  const auto = autoRoutes(nodes, edges);
   const items = edges.flatMap((edge, index) => {
     const a = byId.get(edge.from),
       b = byId.get(edge.to);
     if (!a || !b || (a.gx === b.gx && a.gy === b.gy)) return [];
     const stored = readRoute(edge.data);
     const route =
-      opts.override?.id === edge.id ? opts.override.route : (stored ?? autoRoute(a, b, nodes));
+      opts.override?.id === edge.id
+        ? opts.override.route
+        : (stored ?? auto.get(edge.id) ?? autoRoute(a, b, nodes));
     const segs = routeSegments(a, b, route);
     return segs.length ? [{ edge, index, a, b, route, custom: !!stored, segs }] : [];
   });

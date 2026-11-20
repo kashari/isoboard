@@ -17,7 +17,7 @@ import { useDiagram } from "@/store/diagram";
 import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
-import { readRoute, autoRoute } from "@/lib/routing";
+import { readRoute, autoRoutes, sameRoute } from "@/lib/routing";
 /** Items whose sticker can label a connector: one entry per distinct icon, A–Z. */
 const labelItems = [
   ...new Map(Object.values(registry).map((e) => [e.icon, e.label] as const)).entries(),
@@ -202,14 +202,23 @@ export function Inspector() {
                     disabled={!ends?.a || !ends.b}
                     onClick={() => {
                       if (!ends?.a || !ends.b) return;
-                      // Swaps between the two L-shaped routes.
-                      const auto = autoRoute(ends.a, ends.b, diagram.nodes);
-                      const now = readRoute(edge.data) ?? auto;
-                      const start = now.start === "x" ? "y" : "x";
+                      // Turns the corner the other way: an L starting along the other axis.
                       const { bend: _b, route: _r, ...rest } = edge.data;
+                      const auto = autoRoutes(
+                        diagram.nodes,
+                        diagram.edges.map((e) => (e.id === edge.id ? { ...e, data: rest } : e)),
+                      ).get(edge.id);
+                      const now = readRoute(edge.data) ?? auto;
+                      if (!now) return;
+                      const flipped = {
+                        start: now.start === "x" ? ("y" as const) : ("x" as const),
+                        stops: [],
+                      };
                       updateEdge(edge.id, {
                         data:
-                          start === auto.start ? rest : { ...rest, route: { start, stops: [] } },
+                          auto && sameRoute(ends.a, ends.b, flipped, auto)
+                            ? rest
+                            : { ...rest, route: flipped },
                       });
                     }}
                   >
