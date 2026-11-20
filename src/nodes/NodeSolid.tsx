@@ -40,7 +40,7 @@ export function NodeSolid({ node, preview = false }: SolidProps) {
   const tall = type === "box" || type === "storage" || type === "function" || type === "ai";
   return (
     <g className={`solid color-${color}`}>
-      {type !== "zone" && type !== "note" && (
+      {type !== "zone" && type !== "note" && type !== "file" && (
         <path className="ground-shadow" d="M 10 -12 L 60 13 L 10 38 L -40 13 Z" />
       )}
       <g>

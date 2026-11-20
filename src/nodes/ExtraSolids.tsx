@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { Node, NodeType } from "@/types/diagram";
-import { FaceIcon } from "./KidIcon";
+import { FaceIcon, PersonFigure } from "./KidIcon";
 
 /**
  * Additional node shapes, built from a tiny isometric "prism" helper so each item is a few
@@ -119,32 +119,65 @@ function Firewall() {
   );
 }
 
-/** A coloured tray holding a stack of paper sheets (dog-eared on top) with the file-type sticker. */
+/** The type each file item shows on its sheet (the `File:EXT` sticker name). */
+const fileExt = (node: Node) =>
+  node.icon.startsWith("File:") ? node.icon.slice(5) : node.type === "file" ? "FILE" : "FILE";
+
+/**
+ * A single upright sheet of paper standing on the board, dog-eared at the top, with the file
+ * type written big on a band in that type's own colour (`ft-*` in styles.css).
+ */
 function Document({ node }: { node: Node }) {
-  const sheet = (z: number, h: number, inset = 0) => {
-    const f = prism({ w: 1.12 - inset, d: 1.42 - inset, h, z });
-    return (
-      <>
-        <path className="paper-side" d={f.left} />
-        <path className="paper-side shade-more" d={f.right} />
-        <path className="paper" d={f.top} />
-      </>
-    );
-  };
-  const top = 22;
+  const ext = fileExt(node);
+  // The sheet stands on the front-left plane (along gx). Drawing in that plane's own
+  // coordinates: u runs along the sheet (px), v is up (negative), sheared like the board.
+  const W = 22,
+    H = 70,
+    C = 15,
+    T = 0.12;
+  const y = T / 2;
+  const front = `M ${-W} 0 L ${W} 0 L ${W} ${-H + C} L ${W - C} ${-H} L ${-W} ${-H} Z`;
+  const size = ext.length <= 3 ? 17 : ext.length === 4 ? 14 : 11;
+  // Edges of the sheet's thickness (right side and top), in board coordinates.
+  const u = W / 32;
+  const cu = (W - C) / 32;
   return (
-    <>
-      <Prism w={1.3} d={1.6} h={8} />
-      {sheet(8, 5)}
-      {sheet(13, 5, 0.04)}
-      {sheet(18, 4, 0.08)}
-      {/* Folded corner of the top sheet. */}
+    <g className={`file-sheet ft-${ext}`}>
+      {/* Its own slim shadow, cast back and to the right. */}
       <path
-        className="paper-side"
-        d={`M ${pt(0.52, -0.3, top)} L ${pt(0.22, -0.67, top)} L ${pt(0.52, -0.67, top)} Z`}
+        className="ground-shadow"
+        d={`M ${pt(-u, y)} L ${pt(u, y)} L ${pt(u + 0.35, y - 0.75)} L ${pt(-u + 0.35, y - 0.75)} Z`}
       />
-      <FaceIcon name={node.icon} cx={0} cy={-top - 2} scale={2.5} />
-    </>
+      <path
+        className="file-edge"
+        d={`M ${pt(u, y, 0)} L ${pt(u, -y, 0)} L ${pt(u, -y, H - C)} L ${pt(cu, -y, H)} L ${pt(-u, -y, H)} L ${pt(-u, y, H)} L ${pt(cu, y, H)} L ${pt(u, y, H - C)} Z`}
+      />
+      <g transform={`matrix(1 0.5 0 1 ${-y * U} ${y * (U / 2)})`}>
+        <path className="file-paper" d={front} />
+        {[0, 1, 2].map((i) => (
+          <path
+            key={i}
+            className="file-text"
+            d={`M ${-W + 7} ${-H + 14 + i * 7} L ${W - (i === 0 ? C + 6 : i === 2 ? 14 : 7)} ${-H + 14 + i * 7}`}
+          />
+        ))}
+        <rect className="file-band" x={-W - 4} y={-36} width={2 * W + 8} height={25} rx={4} />
+        <text
+          className="file-ext"
+          x="0"
+          y={-23.5}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{ fontSize: size }}
+        >
+          {ext}
+        </text>
+        <path
+          className="file-fold"
+          d={`M ${W - C} ${-H} L ${W - C} ${-H + C - 2} Q ${W - C} ${-H + C} ${W - C + 2} ${-H + C} L ${W} ${-H + C} Z`}
+        />
+      </g>
+    </g>
   );
 }
 
@@ -339,6 +372,114 @@ function Guard() {
   );
 }
 
+/* ---------- Orthogonal states and events ---------- */
+
+/** Orthogonal state: one slab split into two regions (dashed seam), a sub-state in each, and a
+ * dashed hop where one region signals the other. */
+function Orthogonal({ node }: { node: Node }) {
+  const seam = `M ${pt(-1.05, 0, 12)} L ${pt(1.05, 0, 12)}`;
+  return (
+    <>
+      <Prism w={2.1} d={1.7} h={12} />
+      <path className="seam" d={seam} />
+      <Prism x={-0.25} y={-0.45} w={0.75} d={0.42} h={8} z={12} topClass="face-top inner-top" />
+      <Prism x={0.25} y={0.45} w={0.75} d={0.42} h={8} z={12} topClass="face-top inner-top" />
+      <path
+        className="signal-hop-outline"
+        d={`M ${pt(-0.25, -0.45, 20)} Q ${pt(0, 0, 38)} ${pt(0.25, 0.45, 20)}`}
+      />
+      <path
+        className="signal-hop"
+        d={`M ${pt(-0.25, -0.45, 20)} Q ${pt(0, 0, 38)} ${pt(0.25, 0.45, 20)}`}
+      />
+      <FaceIcon name={node.icon} cx={50} cy={-38} scale={1.3} />
+    </>
+  );
+}
+
+/** Region: a flat lane with a dashed rim, one parallel part of an orthogonal state. */
+function Region({ node }: { node: Node }) {
+  const f = prism({ w: 1.9, d: 1.2, h: 5 });
+  return (
+    <>
+      <path className="face-left" d={f.left} />
+      <path className="face-right" d={f.right} />
+      <path className="face-top region-top" d={f.top} />
+      <path className="seam" d={prism({ w: 1.6, d: 0.9, h: 5 }).top} />
+      <FaceIcon name={node.icon} cx={0} cy={-14} scale={1.6} />
+    </>
+  );
+}
+
+/**
+ * Event pentagon. Drawn in screen-aligned plan coordinates (a → right on screen, b → towards
+ * the viewer): send is an arrow pointing right, receive the same block with a notch taking
+ * the arrow in on its left.
+ */
+function Pentagon({ notch, node }: { notch: boolean; node: Node }) {
+  const h = 18;
+  const plan: [number, number][] = notch
+    ? [
+        [-1.05, -0.85],
+        [0.9, -0.85],
+        [0.9, 0.85],
+        [-1.05, 0.85],
+        [-0.45, 0],
+      ]
+    : [
+        [-1, -0.85],
+        [0.3, -0.85],
+        [1.15, 0],
+        [0.3, 0.85],
+        [-1, 0.85],
+      ];
+  // Plan → grid: a runs along (+gx, -gy), b along (+gx, +gy).
+  const g = ([a, b]: [number, number], z = 0) => pt((a + b) * 0.56, (b - a) * 0.56, z);
+  const area = plan.reduce((sum, [a0, b0], i) => {
+    const [a1, b1] = plan[(i + 1) % plan.length]!;
+    return sum + a0 * b1 - a1 * b0;
+  }, 0);
+  const walls = plan
+    .map((p, i) => {
+      const q = plan[(i + 1) % plan.length]!;
+      const sgn = area > 0 ? 1 : -1;
+      const na = sgn * (q[1] - p[1]),
+        nb = -sgn * (q[0] - p[0]);
+      return { p, q, na, nb, depth: (p[1] + q[1]) / 2 };
+    })
+    .filter((w) => w.nb > 0.001)
+    .sort((x, y) => x.depth - y.depth);
+  const top = "M " + plan.map((p) => g(p, h)).join(" L ") + " Z";
+  return (
+    <>
+      {walls.map((w, i) => (
+        <path
+          key={i}
+          className={w.na > 0.001 ? "face-right" : "face-left"}
+          d={`M ${g(w.p, h)} L ${g(w.q, h)} L ${g(w.q)} L ${g(w.p)} Z`}
+        />
+      ))}
+      <path className="face-top" d={top} />
+      <Glint cx={-10} cy={-h} hw={40} hh={14} />
+      <FaceIcon name={node.icon} cx={notch ? 8 : -6} cy={-h} scale={1.9} />
+    </>
+  );
+}
+
+/** Submachine state: a state slab with an inset window, where another machine runs. */
+function Submachine({ node }: { node: Node }) {
+  const inset = prism({ w: 1.3, d: 0.85, h: 16 }).top;
+  return (
+    <>
+      <Prism w={1.9} d={1.4} h={16} />
+      <path className="face-left inset" d={inset} />
+      <path className="seam" d={prism({ w: 1.1, d: 0.65, h: 16 }).top} />
+      <Glint cx={0} cy={-16} hw={46} hh={23} />
+      <FaceIcon name={node.icon} cx={0} cy={-22} scale={1.9} />
+    </>
+  );
+}
+
 /** Shape renderers for the extra node types; NodeSolid falls back to its built-ins. */
 export const extraSolids: Partial<Record<NodeType, (node: Node) => ReactElement>> = {
   file: (node) => <Document node={node} />,
@@ -372,4 +513,15 @@ export const extraSolids: Partial<Record<NodeType, (node: Node) => ReactElement>
   terminate: () => <Terminate />,
   composite: (node) => <Composite node={node} />,
   guard: () => <Guard />,
+  orthogonal: (node) => <Orthogonal node={node} />,
+  region: (node) => <Region node={node} />,
+  send: (node) => <Pentagon notch={false} node={node} />,
+  receive: (node) => <Pentagon notch node={node} />,
+  submachine: (node) => <Submachine node={node} />,
+  ...Object.fromEntries(
+    ["kid", "boy", "girl", "man", "woman", "elder", "developer", "group"].map((k) => [
+      k,
+      () => <PersonFigure kind={k} />,
+    ]),
+  ),
 };

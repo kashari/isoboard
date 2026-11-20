@@ -94,4 +94,53 @@ describe("Logic validation", () => {
     expect(defaultEdge(n("s", "state"), []).kind).toBe("transition");
     expect(defaultEdge(n("p", "process"), [], n("q", "process")).kind).toBe("plain");
   });
+  it("models orthogonal regions and the events their children send each other", () => {
+    // Send → anything (or anything → receive) is a dashed signal with a bolt sticker.
+    expect(defaultEdge(n("s", "send"), [], n("r", "receive"))).toMatchObject({
+      kind: "signal",
+      style: "dashed",
+      data: { icon: "Zap" },
+    });
+    expect(defaultEdge(n("a", "state"), [], n("r", "receive")).kind).toBe("signal");
+    // Orthogonal → region is containment, drawn dotted.
+    expect(defaultEdge(n("o", "orthogonal"), [], n("r", "region"))).toMatchObject({
+      kind: "plain",
+      style: "dotted",
+    });
+    const sig = (id: string, from: string, to: string): Edge => ({
+      ...e(id, from, to),
+      kind: "signal",
+    });
+    const nodes = [
+      n("i", "initial"),
+      n("o", "orthogonal"),
+      n("r1", "region"),
+      n("r2", "region"),
+      n("s", "send"),
+      n("rc", "receive"),
+    ];
+    const ok = [
+      e("1", "i", "o"),
+      e("2", "o", "r1"),
+      e("3", "o", "r2"),
+      e("4", "r1", "s"),
+      sig("5", "s", "rc"),
+    ];
+    expect(validate(d(nodes, ok))).toEqual([]);
+    // One region only, and a send that signals nobody (so the receive never hears it).
+    const ids = validate(
+      d(
+        nodes,
+        ok.filter((x) => x.id !== "3" && x.id !== "5"),
+      ),
+    ).map((i) => i.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "orthogonal-regions-o",
+        "send-out-s",
+        "receive-in-rc",
+        "region-in-r2",
+      ]),
+    );
+  });
 });

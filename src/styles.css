@@ -2438,12 +2438,183 @@ kbd {
   font-weight: 800;
   letter-spacing: -0.05em;
 }
-.solid .paper-side {
-  fill: color-mix(in oklch, var(--node-paper) 86%, var(--node-shade));
-}
-.solid .paper-side.shade-more {
-  fill: color-mix(in oklch, var(--node-paper) 74%, var(--node-shade));
-}
 .kid-icon .g-file-ext.on-light {
   fill: var(--node-ink);
+}
+
+/* File items (ExtraSolids `Document`, KidIcon `FileGlyph`): one clear colour per file type. */
+[class*="ft-"] {
+  --file: oklch(0.72 0.03 80);
+  --file-ink: oklch(1 0 0);
+}
+.ft-PDF {
+  --file: oklch(0.6 0.2 27);
+}
+.ft-CSV {
+  --file: oklch(0.66 0.16 148);
+}
+.ft-XLSX {
+  --file: oklch(0.5 0.12 155);
+}
+.ft-JSON {
+  --file: oklch(0.84 0.15 92);
+  --file-ink: var(--node-ink);
+}
+.ft-XML {
+  --file: oklch(0.76 0.15 60);
+  --file-ink: var(--node-ink);
+}
+.ft-DOCX {
+  --file: oklch(0.52 0.16 258);
+}
+.ft-ZIP {
+  --file: oklch(0.5 0.08 55);
+}
+.ft-IMG {
+  --file: oklch(0.64 0.2 350);
+}
+.ft-MP4 {
+  --file: oklch(0.52 0.19 300);
+}
+.ft-TXT {
+  --file: oklch(0.58 0.03 250);
+}
+.ft-YAML {
+  --file: oklch(0.6 0.11 195);
+}
+.ft-LOG {
+  --file: oklch(0.4 0.04 255);
+}
+.ft-FILE {
+  --file: oklch(0.86 0.04 85);
+  --file-ink: var(--node-ink);
+}
+.kid-icon .g-file-band {
+  fill: var(--file);
+}
+.solid .file-paper {
+  fill: color-mix(in oklch, var(--file) 9%, oklch(0.995 0.004 90));
+}
+.solid .file-edge {
+  fill: color-mix(in oklch, var(--file) 45%, var(--node-paper));
+}
+.solid .file-fold {
+  fill: color-mix(in oklch, var(--file) 55%, var(--node-paper));
+  stroke-width: 1.8;
+}
+.solid .file-band {
+  fill: var(--file);
+  stroke-width: 2.2;
+}
+.solid .file-text {
+  fill: none;
+  stroke: color-mix(in oklch, var(--file) 40%, oklch(0.75 0.01 80));
+  stroke-width: 2.6;
+}
+.solid .file-ext {
+  fill: var(--file-ink);
+  stroke: none;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+/* People (KidIcon `PersonFigure`): skin and hair tones, clothes details. */
+.kid-user.skin-light .kid-skin {
+  fill: oklch(0.91 0.04 65);
+}
+.kid-user.skin-tan .kid-skin {
+  fill: oklch(0.82 0.07 60);
+}
+.kid-user.skin-brown .kid-skin {
+  fill: oklch(0.65 0.08 55);
+}
+.kid-user.skin-deep .kid-skin {
+  fill: oklch(0.48 0.07 50);
+}
+.kid-user .hair-brown {
+  fill: oklch(0.42 0.07 50);
+}
+.kid-user .hair-dark {
+  fill: oklch(0.25 0.02 50);
+}
+.kid-user .hair-blond {
+  fill: oklch(0.85 0.12 88);
+}
+.kid-user .hair-red {
+  fill: oklch(0.6 0.15 40);
+}
+.kid-user .hair-grey {
+  fill: oklch(0.88 0.01 250);
+}
+.kid-user .kid-tie {
+  fill: var(--node-peach);
+}
+.kid-user .kid-collar {
+  fill: var(--node-paper);
+  stroke-width: 1.4;
+}
+.kid-user .kid-cap {
+  fill: var(--node-peach);
+}
+.kid-user .kid-bow {
+  fill: var(--node-peach);
+  stroke-width: 1.4;
+}
+.kid-user .kid-overalls {
+  fill: var(--node-blue);
+}
+.kid-user .kid-button {
+  fill: var(--node-ink);
+  stroke: none;
+}
+.kid-user .kid-curl {
+  fill: none;
+  stroke: oklch(0.6 0.1 70);
+  stroke-width: 2.6;
+}
+.kid-user .kid-glasses {
+  fill: oklch(1 0 0 / 0.25);
+  stroke: var(--node-face-ink);
+  stroke-width: 1.6;
+}
+.kid-user .kid-line-light {
+  stroke: var(--node-paper);
+}
+.kid-user .kid-headset {
+  fill: none;
+  stroke: var(--node-ink);
+  stroke-width: 3;
+}
+.kid-user .kid-headset.thin {
+  stroke-width: 1.6;
+}
+.kid-user .kid-earcup {
+  fill: var(--node-ink);
+}
+
+/* Orthogonal states and events (ExtraSolids). */
+.solid .seam {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-dasharray: 4 3.5;
+}
+.solid .region-top {
+  fill: color-mix(in oklch, var(--node-fill) 55%, var(--node-paper));
+}
+.solid .signal-hop {
+  fill: none;
+  stroke: var(--node-amber);
+  stroke-width: 2.6;
+}
+.solid .signal-hop-outline {
+  fill: none;
+  stroke: var(--node-ink);
+  stroke-width: 5.5;
+}
+.solid .inset {
+  stroke-width: 1.6;
+}
+.flow-signal {
+  fill: var(--amber);
 }

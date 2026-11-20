@@ -5,44 +5,24 @@ import { icons, type LucideIcon } from "lucide-react";
  * A few common icons get hand-made, coloured glyphs; everything else falls back to a heavy
  * lucide line icon so every icon in the picker keeps working.
  */
-/** Band colour of each file-type sticker. */
-const FILE_BAND: Record<string, string> = {
-  PDF: "g-red",
-  CSV: "g-green",
-  XLSX: "g-green",
-  JSON: "g-amber",
-  ZIP: "g-amber",
-  XML: "g-blue",
-  DOCX: "g-blue",
-  IMG: "g-lavender",
-  MP4: "g-lavender",
-  YAML: "g-red",
-};
-/** Bands light enough to need dark text. */
-const LIGHT_BANDS = new Set(["g-amber", "g-blue"]);
-/** A page with a folded corner and a coloured band naming the file type ("File:PDF"). */
+/** Types whose colour is light enough to need dark text (see `.ft-*` in styles.css). */
+const LIGHT_FILES = new Set(["JSON", "XML", "FILE"]);
+/** A page with a folded corner and a band in the file type's colour naming it ("File:PDF"). */
 function FileGlyph({ ext }: { ext: string }) {
   return (
-    <>
+    <g className={`ft-${ext}`}>
       <path className="g-paper" d="M 7.2 4.6 H 14.4 L 17.8 8 V 19.4 H 7.2 Z" />
       <path d="M 14.4 4.6 V 8 H 17.8" />
-      <rect
-        className={FILE_BAND[ext] ?? "g-ink"}
-        x="4.4"
-        y="11"
-        width="12.2"
-        height="5.8"
-        rx="1.3"
-      />
+      <rect className="g-file-band" x="4.4" y="11" width="12.2" height="5.8" rx="1.3" />
       <text
-        className={`g-file-ext ${LIGHT_BANDS.has(FILE_BAND[ext] ?? "") ? "on-light" : ""}`}
+        className={`g-file-ext ${LIGHT_FILES.has(ext) ? "on-light" : ""}`}
         x="10.5"
         y="15.35"
         textAnchor="middle"
       >
         {ext}
       </text>
-    </>
+    </g>
   );
 }
 function Glyph({ name }: { name: string }) {
@@ -303,6 +283,225 @@ export function UserFigure() {
       <circle className="kid-eye" cx="-5" cy="-45" r="1.9" />
       <circle className="kid-eye" cx="5" cy="-45" r="1.9" />
       <path className="kid-line" d="M -4.5 -39 Q 0 -35.5 4.5 -39" />
+    </g>
+  );
+}
+
+/* ---------- More people: one figure, many looks ---------- */
+
+type Hair = "short" | "cap" | "pigtails" | "long" | "neat" | "curl" | "elder" | "headset";
+type Outfit = "shirt" | "tie" | "dress" | "overalls" | "hoodie" | "cardigan";
+interface Look {
+  /** Size of the figure (not the base): 1 is an adult, kids are smaller. */
+  scale: number;
+  hair: Hair;
+  tone: "brown" | "dark" | "blond" | "red" | "grey";
+  skin: "light" | "tan" | "brown" | "deep";
+  outfit: Outfit;
+  glasses?: boolean;
+  beard?: boolean;
+}
+const LOOKS: Record<string, Look> = {
+  man: { scale: 1, hair: "neat", tone: "dark", skin: "tan", outfit: "tie", beard: true },
+  woman: { scale: 1, hair: "long", tone: "brown", skin: "brown", outfit: "dress" },
+  boy: { scale: 0.84, hair: "cap", tone: "blond", skin: "light", outfit: "shirt" },
+  girl: { scale: 0.84, hair: "pigtails", tone: "red", skin: "light", outfit: "dress" },
+  kid: { scale: 0.7, hair: "curl", tone: "blond", skin: "tan", outfit: "overalls" },
+  elder: {
+    scale: 0.96,
+    hair: "elder",
+    tone: "grey",
+    skin: "light",
+    outfit: "cardigan",
+    glasses: true,
+    beard: true,
+  },
+  developer: {
+    scale: 1,
+    hair: "headset",
+    tone: "dark",
+    skin: "deep",
+    outfit: "hoodie",
+    glasses: true,
+  },
+};
+
+const BODY: Record<Outfit, string> = {
+  shirt: "M -17 0 C -19 -22 -12 -30 0 -30 C 12 -30 19 -22 17 0 C 8 6 -8 6 -17 0 Z",
+  tie: "M -17 0 C -19 -22 -12 -30 0 -30 C 12 -30 19 -22 17 0 C 8 6 -8 6 -17 0 Z",
+  cardigan: "M -17 0 C -19 -22 -12 -30 0 -30 C 12 -30 19 -22 17 0 C 8 6 -8 6 -17 0 Z",
+  hoodie: "M -18 0 C -20 -22 -13 -31 0 -31 C 13 -31 20 -22 18 0 C 8 6 -8 6 -18 0 Z",
+  dress:
+    "M -10 -30 C -4 -31 4 -31 10 -30 C 14 -22 20 -8 23 0 C 10 7 -10 7 -23 0 C -20 -8 -14 -22 -10 -30 Z",
+  overalls: "M -16 0 C -18 -20 -12 -28 0 -28 C 12 -28 18 -20 16 0 C 8 6 -8 6 -16 0 Z",
+};
+
+/** A person from `LOOKS`, standing at the origin (no base). */
+function Figure({ look }: { look: Look }) {
+  const { hair, tone, skin, outfit } = look;
+  const hairCls = `kid-hair hair-${tone}`;
+  return (
+    <g className={`kid-user skin-${skin}`} transform={`scale(${look.scale})`}>
+      {/* Hair that hangs behind the head and body. */}
+      {hair === "long" && (
+        <path
+          className={hairCls}
+          d="M -17 -48 C -19 -68 19 -68 17 -48 L 19 -24 C 10 -19 -10 -19 -19 -24 Z"
+        />
+      )}
+      {hair === "pigtails" && (
+        <>
+          <circle className={hairCls} cx="-18" cy="-46" r="7" />
+          <circle className={hairCls} cx="18" cy="-46" r="7" />
+          <path className="kid-bow" d="M -20 -55 l -5 -4 v 8 Z M -20 -55 l 5 -4 v 8 Z" />
+          <path className="kid-bow" d="M 20 -55 l -5 -4 v 8 Z M 20 -55 l 5 -4 v 8 Z" />
+        </>
+      )}
+      {outfit === "hoodie" && <ellipse className="face-left" cy="-30" rx="15" ry="6" />}
+      <path className="face-top" d={BODY[outfit]} />
+      {outfit === "tie" && (
+        <>
+          <path className="kid-collar" d="M -7 -30 L 0 -25 L 7 -30 L 0 -29 Z" />
+          <path className="kid-tie" d="M 0 -26 L -3.4 -22 L 0 -9 L 3.4 -22 Z" />
+        </>
+      )}
+      {outfit === "shirt" && <path className="kid-line" d="M -6 -30 L 0 -24 L 6 -30" />}
+      {outfit === "cardigan" && (
+        <>
+          <path className="kid-line" d="M -5 -30 L 0 -20 L 0 2 M 5 -30 L 0 -20" />
+          <circle className="kid-button" cx="-3" cy="-14" r="1.5" />
+          <circle className="kid-button" cx="-3" cy="-6" r="1.5" />
+        </>
+      )}
+      {outfit === "hoodie" && (
+        <>
+          <path className="kid-line" d="M -4 -27 L -5 -18 M 4 -27 L 5 -18" />
+          <path className="face-left" d="M -9 -8 L 9 -8 L 11 0 C 4 2 -4 2 -11 0 Z" />
+        </>
+      )}
+      {outfit === "overalls" && (
+        <>
+          <path className="kid-overalls" d="M -10 -16 L 10 -16 L 16 0 C 8 6 -8 6 -16 0 Z" />
+          <path className="kid-line" d="M -9 -16 L -11 -27 M 9 -16 L 11 -27" />
+          <circle className="kid-button" cx="-7" cy="-13" r="1.5" />
+          <circle className="kid-button" cx="7" cy="-13" r="1.5" />
+        </>
+      )}
+      {outfit === "dress" && <path className="kid-line" d="M -9 -18 C -3 -15 3 -15 9 -18" />}
+      <circle className="kid-skin" cy="-46" r="15" />
+      {hair === "short" && (
+        <path
+          className={hairCls}
+          d="M -15.5 -47 C -16.5 -62 -2 -66 8 -61.5 C 14 -58.5 16.5 -52.5 15.5 -46 C 10 -52 2 -55 -6 -51.5 C -10 -49.5 -13 -48.2 -15.5 -47 Z"
+        />
+      )}
+      {(hair === "neat" || hair === "headset") && (
+        <path
+          className={hairCls}
+          d="M -15.5 -46 C -17 -62 15 -64 15.5 -47 C 14 -52 11 -54 6 -53 C -2 -56 -10 -53 -13 -50 C -14.5 -48.5 -15 -47 -15.5 -46 Z"
+        />
+      )}
+      {hair === "long" && (
+        <path
+          className={hairCls}
+          d="M -15.5 -45 C -17 -63 13 -66 15.5 -48 C 9 -56 -2 -54 -6 -49 C -9 -51 -12 -48 -15.5 -45 Z"
+        />
+      )}
+      {hair === "pigtails" && (
+        <path
+          className={hairCls}
+          d="M -15.5 -46 C -16 -63 16 -63 15.5 -46 C 11 -51 6 -53 0 -50 C -6 -53 -11 -51 -15.5 -46 Z"
+        />
+      )}
+      {hair === "cap" && (
+        <>
+          <path className={hairCls} d="M -15 -46 C -15 -50 -13 -52 -11 -52 L -12 -44 Z" />
+          <path className="kid-cap" d="M -15.5 -49 C -15 -65 15 -65 15.5 -49 Z" />
+          <path className="kid-cap" d="M 6 -51 C 14 -53 23 -52 25 -49 C 20 -47 12 -48 6 -49 Z" />
+          <circle className="kid-button" cy="-63" r="1.6" />
+        </>
+      )}
+      {hair === "curl" && (
+        <path className="kid-curl" d="M -2 -61 C -6 -66 0 -71 4 -67 C 6 -65 4 -62 1 -63" />
+      )}
+      {hair === "elder" && (
+        <>
+          <path
+            className={hairCls}
+            d="M -15.5 -42 C -17.5 -50 -15 -56 -11 -57 C -12 -51 -12 -47 -11 -42 Z"
+          />
+          <path
+            className={hairCls}
+            d="M 15.5 -42 C 17.5 -50 15 -56 11 -57 C 12 -51 12 -47 11 -42 Z"
+          />
+        </>
+      )}
+      {look.beard && (
+        <path
+          className={hairCls}
+          d={
+            hair === "elder"
+              ? "M -13 -42 C -12 -28 12 -28 13 -42 C 8 -37 -8 -37 -13 -42 Z"
+              : "M -13.5 -43 C -12 -32 12 -32 13.5 -43 C 9 -38 -9 -38 -13.5 -43 Z"
+          }
+        />
+      )}
+      {!look.beard && (
+        <>
+          <circle className="kid-cheek" cx="-9" cy="-40" r="2.6" />
+          <circle className="kid-cheek" cx="9" cy="-40" r="2.6" />
+        </>
+      )}
+      <circle className="kid-eye" cx="-5" cy="-45" r="1.9" />
+      <circle className="kid-eye" cx="5" cy="-45" r="1.9" />
+      {look.glasses && (
+        <path
+          className="kid-glasses"
+          d="M -10.5 -45 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0 M 0.5 -45 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0 M -0.5 -45.5 L 0.5 -45.5"
+        />
+      )}
+      <path
+        className={look.beard ? "kid-line kid-line-light" : "kid-line"}
+        d="M -4.5 -39 Q 0 -35.5 4.5 -39"
+      />
+      {hair === "headset" && (
+        <>
+          <path className="kid-headset" d="M -16 -46 C -17 -68 17 -68 16 -46" />
+          <rect className="kid-earcup" x="-20" y="-52" width="7" height="11" rx="3" />
+          <rect className="kid-earcup" x="13" y="-52" width="7" height="11" rx="3" />
+          <path className="kid-headset thin" d="M -16 -42 C -15 -35 -10 -33 -5 -34" />
+          <circle className="kid-button" cx="-5" cy="-34" r="1.8" />
+        </>
+      )}
+    </g>
+  );
+}
+
+/** A person (from `LOOKS`) or a small group standing on a round base. */
+export function PersonFigure({ kind }: { kind: string }) {
+  if (kind === "group")
+    return (
+      <g>
+        <ellipse className="face-left" cy="11" rx="46" ry="23" />
+        <ellipse className="face-top" cy="5" rx="46" ry="23" />
+        <g transform="translate(-17 -2)">
+          <Figure look={{ ...LOOKS["woman"]!, scale: 0.82 }} />
+        </g>
+        <g transform="translate(17 -2)">
+          <Figure look={{ ...LOOKS["man"]!, scale: 0.86 }} />
+        </g>
+        <g transform="translate(0 12)">
+          <Figure look={{ ...LOOKS["kid"]!, scale: 0.6 }} />
+        </g>
+      </g>
+    );
+  const look = LOOKS[kind] ?? LOOKS["man"]!;
+  const r = 26 + 10 * look.scale;
+  return (
+    <g>
+      <ellipse className="face-left" cy="9" rx={r} ry={r / 2} />
+      <ellipse className="face-top" cy="3" rx={r} ry={r / 2} />
+      <Figure look={look} />
     </g>
   );
 }

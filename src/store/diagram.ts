@@ -121,13 +121,13 @@ export const useDiagram = create<State>((set, get) => ({
           id: newId(),
           from,
           to,
+          style: "solid",
+          data: {},
           ...defaultEdge(
             d.nodes.find((n) => n.id === from),
             d.edges,
             d.nodes.find((n) => n.id === to),
           ),
-          style: "solid",
-          data: {},
         },
       ],
     }));

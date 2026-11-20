@@ -13,7 +13,14 @@ export const STATE_TYPES: NodeType[] = [
   "entry",
   "exit",
   "guard",
+  "orthogonal",
+  "region",
+  "send",
+  "receive",
+  "submachine",
 ];
+/** Containers: an orthogonal state holds regions, a region holds its own little machine. */
+const CONTAINER_TYPES: NodeType[] = ["orthogonal", "region"];
 /** Where a machine can start, and where it must stop. */
 const START_TYPES: NodeType[] = ["initial", "entry"];
 const END_TYPES: NodeType[] = ["final", "terminate"];
@@ -28,17 +35,23 @@ export function transitionLabel(edge: Edge): string {
 export function edgeText(edge: Edge): string {
   return edge.kind === "transition" ? transitionLabel(edge) : edge.label;
 }
-/** Picks the default label/kind for a new edge from `from` to `to`. */
+/** Picks the default label/kind (and style/data where it matters) for a new edge. */
 export function defaultEdge(
   from: Node | undefined,
   existing: Edge[],
   to?: Node,
-): Pick<Edge, "label" | "kind"> {
+): Pick<Edge, "label" | "kind"> & Partial<Pick<Edge, "style" | "data">> {
   if (from?.type === "condition") {
     const used = existing.filter((e) => e.from === from.id).map((e) => e.label);
     const label = ["true", "false"].find((l) => !used.includes(l)) ?? `branch ${used.length + 1}`;
     return { label, kind: "plain" };
   }
+  // An event broadcast from one orthogonal region to another: a dashed signal with a bolt.
+  if (from?.type === "send" || to?.type === "receive")
+    return { label: "event", kind: "signal", style: "dashed", data: { icon: "Zap" } };
+  // Orthogonal state → its regions, region → its sub-states: containment, not a transition.
+  if (from && CONTAINER_TYPES.includes(from.type))
+    return { label: "", kind: "plain", style: "dotted" };
   // Anything touching a state (e.g. Event → State) is a transition.
   if ([from, to].some((n) => n && STATE_TYPES.includes(n.type)))
     return { label: "event", kind: "transition" };
@@ -85,6 +98,17 @@ export function validate(d: Diagram): Issue[] {
       add("fork-arity", `Fork / join "${n.label}" needs 2+ outgoing (fork) or 2+ incoming (join)`);
     if (n.type === "guard" && !out.length)
       add("guard-out", `Guard "${n.label}" doesn't lead anywhere`);
+    if (n.type === "orthogonal" && out.filter((e) => byId.get(e.to)?.type === "region").length < 2)
+      add(
+        "orthogonal-regions",
+        `Orthogonal state "${n.label}" needs 2+ regions running in parallel`,
+      );
+    if (n.type === "send" && !out.some((e) => e.kind === "signal"))
+      add("send-out", `Send "${n.label}" doesn't signal anything`);
+    if (n.type === "receive" && !incoming(n.id).some((e) => e.kind === "signal"))
+      add("receive-in", `Receive "${n.label}" never gets its event`);
+    if (n.type === "region" && !incoming(n.id).length)
+      add("region-in", `Region "${n.label}" belongs to no orthogonal state`);
     if (n.type === "history" && !incoming(n.id).length)
       add("history-in", `History "${n.label}" has no transition into it`);
   }

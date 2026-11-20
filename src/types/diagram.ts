@@ -68,11 +68,31 @@ export const NODE_TYPES = [
   "file-txt",
   "file-yaml",
   "file-log",
+  "orthogonal",
+  "region",
+  "send",
+  "receive",
+  "submachine",
+  "kid",
+  "boy",
+  "girl",
+  "man",
+  "woman",
+  "elder",
+  "developer",
+  "group",
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 export type NodeColor = "amber" | "blue" | "lavender" | "mint" | "peach" | "stone";
 export type EdgeStyle = "solid" | "dashed" | "dotted" | "bidirectional";
-export const EDGE_KINDS = ["plain", "request", "response", "handshake", "transition"] as const;
+export const EDGE_KINDS = [
+  "plain",
+  "request",
+  "response",
+  "handshake",
+  "transition",
+  "signal",
+] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 export type Mode = "architecture" | "flow" | "state";
 export interface Node {
