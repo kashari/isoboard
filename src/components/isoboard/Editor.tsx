@@ -9,7 +9,7 @@ import { CommandPalette } from "./CommandPalette";
 import { Presenter } from "./Presenter";
 import { ExportDialog } from "./ExportDialog";
 import { Notice } from "./Notice";
-import { saveDiagram, openDiagram } from "./file-actions";
+import { saveDiagram, openDiagram, openFromLink } from "./file-actions";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
@@ -29,12 +29,17 @@ export function Editor() {
   const hasSelection = selection.length > 0 || selectedEdge !== null;
   useEffect(() => {
     useDiagram.getState().hydrate();
+    // A #spec=… or #diagram=… link opens its diagram, now or whenever the hash changes.
+    void openFromLink();
+    const onHash = () => void openFromLink();
+    window.addEventListener("hashchange", onHash);
     try {
       setPaletteOpen(localStorage.getItem("isoboard-palette") !== "hidden");
     } catch {
       /* storage unavailable */
     }
     setReady(true);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
   togglePaletteRef.current = () => togglePalette();
   const togglePalette = () =>
