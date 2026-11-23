@@ -1,6 +1,6 @@
-import { useDiagram } from "@/store/diagram";
-import { saveToDevice, openFromDevice, readDiagramFile } from "@/lib/file-io";
-import { SpecError, importValue } from "@/lib/import-diagram";
+import { useDiagram, newId } from "@/store/diagram";
+import { saveToDevice, openFromDevice, readDiagramFile, rekeyHandle } from "@/lib/file-io";
+import { ImportError, SpecError, importValue } from "@/lib/import-diagram";
 import { readHashPayload } from "@/lib/spec";
 import type { Diagram } from "@/types/diagram";
 
@@ -15,27 +15,72 @@ export async function saveDiagram(saveAs = false) {
   }
 }
 
+let opening = false;
 /** Open a `.isoboard` (or older `.json`) file: from a picker, or a dropped `file`. */
 export async function openDiagram(file?: File) {
   const s = useDiagram.getState();
+  // A second Open while the picker is still up would fail (or open two dialogs).
+  if (opening && !file) return;
+  opening = true;
   try {
     const diagram = file ? await readDiagramFile(file) : await openFromDevice();
     if (diagram) openBuilt(diagram);
   } catch (e) {
-    s.notify(failure(e, "This file is not a valid Isoboard diagram."), true);
+    s.notify(failure(e, "Couldn't open this file."), true);
+  } finally {
+    opening = false;
   }
 }
+
+const sameContent = (a: Diagram, b: Diagram) =>
+  JSON.stringify([a.nodes, a.edges]) === JSON.stringify([b.nodes, b.edges]);
 
 function openBuilt(diagram: Diagram, how = "Opened") {
   const s = useDiagram.getState();
   // Keep what was on the board (an empty board isn't worth a project of its own).
-  if (s.diagram.nodes.length || s.diagram.edges.length) s.save();
-  s.open(diagram);
-  useDiagram.getState().save();
-  s.notify(`${how} ${diagram.name}`);
+  const persist = () => {
+    try {
+      useDiagram.getState().save();
+      return true;
+    } catch {
+      return false; // e.g. storage full: the diagram still opens
+    }
+  };
+  if (s.diagram.nodes.length || s.diagram.edges.length) persist();
+  // An older copy of a project that has changed since must not overwrite it: open it alongside.
+  const existing = useDiagram.getState().projects.find((d) => d.id === diagram.id);
+  if (existing && !sameContent(existing, diagram)) {
+    const id = newId();
+    rekeyHandle(diagram.id, id);
+    diagram = { ...diagram, id };
+  }
+  useDiagram.getState().open(diagram);
+  const stored = persist();
+  s.notify(
+    stored
+      ? `${how} ${diagram.name}`
+      : `${how} ${diagram.name}, but the browser storage is full: save it to your device.`,
+    !stored,
+  );
 }
 const failure = (e: unknown, fallback: string) =>
-  e instanceof SpecError ? `Can't build this diagram: ${e.message.split("\n")[0]}` : fallback;
+  e instanceof SpecError
+    ? `Can't build this diagram: ${e.message.split("\n")[0]}`
+    : e instanceof ImportError
+      ? e.message
+      : e instanceof DOMException && e.name === "NotAllowedError"
+        ? "The browser blocked the file picker. Try again, or drop the file on the board."
+        : fallback;
+
+/** Wipes every block and connector from the board (undoable). */
+export function clearBoard() {
+  const s = useDiagram.getState();
+  if (!s.diagram.nodes.length && !s.diagram.edges.length)
+    return s.notify("The board is already empty.");
+  s.commit((d) => ({ ...d, nodes: [], edges: [] }));
+  useDiagram.setState({ selection: [], selectedEdge: null });
+  s.notify("Board cleared. Ctrl Z brings it back.");
+}
 
 /**
  * Opens the diagram a link carries (`#spec=…` or `#diagram=…`) as a new

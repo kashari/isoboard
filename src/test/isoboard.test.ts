@@ -91,7 +91,10 @@ describe("Diagram editing", () => {
     const edge = diagram.edges[0];
     if (!edge) throw new Error("Missing demo edge");
     edge.to = "missing";
-    expect(() => importDiagram(JSON.stringify(diagram))).toThrow();
+    // A connector with a missing end is dropped instead of failing the whole file.
+    expect(importDiagram(JSON.stringify(diagram)).edges.some((e) => e.to === "missing")).toBe(
+      false,
+    );
   });
   it("autosaves projects and restores the current diagram", () => {
     useDiagram.getState().updateNode("web", { label: "API server" });

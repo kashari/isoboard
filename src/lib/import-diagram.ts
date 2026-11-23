@@ -1,45 +1,90 @@
 import { z } from "zod";
-import { NODE_TYPES, EDGE_KINDS, type Diagram } from "@/types/diagram";
+import { NODE_TYPES, EDGE_KINDS, type Diagram, type NodeColor } from "@/types/diagram";
+import { registry } from "@/nodes/registry";
+import { newId } from "@/store/diagram";
 import { buildSpec, isSpec } from "./spec";
+const COLORS = ["amber", "blue", "lavender", "mint", "peach", "stone"] as const;
+/** A grid coordinate: numbers (or numeric strings) snapped to the grid; anything else is 0. */
+const cell = z.preprocess((v) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
+}, z.number().int());
+const text = z.preprocess((v) => (v == null ? "" : String(v)), z.string());
+const record = z.preprocess(
+  (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {}),
+  z.record(z.unknown()),
+);
 const schema = z.object({
-  id: z.string(),
-  name: z.string(),
+  id: z.preprocess((v) => (v == null || v === "" ? newId() : String(v)), z.string()),
+  name: z.preprocess((v) => (v == null || v === "" ? "Untitled" : String(v)), z.string()),
   nodes: z.array(
-    z.object({
-      id: z.string(),
-      type: z.enum(NODE_TYPES),
-      gx: z.number().int(),
-      gy: z.number().int(),
-      gz: z.number().default(0),
-      label: z.string(),
-      sublabel: z.string().default(""),
-      color: z.enum(["amber", "blue", "lavender", "mint", "peach", "stone"]),
-      icon: z.string(),
-      data: z.record(z.unknown()).default({}),
-    }),
+    z
+      .object({
+        id: z.preprocess((v) => (v == null ? v : String(v)), z.string()),
+        type: z.enum(NODE_TYPES),
+        gx: cell,
+        gy: cell,
+        gz: cell,
+        label: z.unknown(),
+        sublabel: text,
+        color: z.unknown(),
+        icon: z.unknown(),
+        data: record,
+      })
+      .transform((n) => {
+        const entry = registry[n.type];
+        return {
+          ...n,
+          label: n.label == null ? entry.label : String(n.label),
+          color: COLORS.includes(n.color as never) ? (n.color as NodeColor) : entry.color,
+          icon: typeof n.icon === "string" && n.icon ? n.icon : entry.icon,
+        };
+      }),
   ),
-  edges: z.array(
-    z.object({
-      id: z.string(),
-      from: z.string(),
-      to: z.string(),
-      label: z.string(),
-      style: z.enum(["solid", "dashed", "dotted", "bidirectional"]),
-      kind: z.enum(EDGE_KINDS),
-      data: z.record(z.unknown()).default({}),
-    }),
-  ),
-  viewport: z.object({ x: z.number(), y: z.number(), zoom: z.number().min(0.25).max(2.5) }),
-  steps: z.boolean().optional(),
+  edges: z
+    .array(
+      z.object({
+        id: z.preprocess((v) => (v == null ? newId() : String(v)), z.string()),
+        from: z.preprocess((v) => (v == null ? v : String(v)), z.string()),
+        to: z.preprocess((v) => (v == null ? v : String(v)), z.string()),
+        label: text,
+        style: z.enum(["solid", "dashed", "dotted", "bidirectional"]).catch("solid"),
+        kind: z.enum(EDGE_KINDS).catch("plain"),
+        data: record,
+      }),
+    )
+    .default([]),
+  viewport: z
+    .object({
+      x: z.number().catch(0),
+      y: z.number().catch(0),
+      zoom: z.number().catch(1),
+    })
+    .catch({ x: 0, y: 0, zoom: 1 })
+    .transform((v) =>
+      Number.isFinite(v.x) && Number.isFinite(v.y) && v.zoom > 0
+        ? { ...v, zoom: Math.min(2.5, Math.max(0.25, v.zoom)) }
+        : { x: 0, y: 0, zoom: 1 },
+    ),
+  steps: z.boolean().optional().catch(undefined),
 });
 /** A spec that can't be built; `message` says what to fix. */
 export class SpecError extends Error {}
+/** A file that can't be read as a diagram; `message` is shown to the user. */
+export class ImportError extends Error {}
 /**
  * Parses a diagram from a `.isoboard` file (`{ format: "isoboard", diagram }`), plain JSON, or
  * a diagram spec (`{ format: "isoboard-spec", spec }`, see lib/spec), which is built here.
  */
 export function importDiagram(text: string): Diagram {
-  return importValue(JSON.parse(text));
+  let raw: unknown;
+  try {
+    // Editors on Windows like to start files with a byte-order mark.
+    raw = JSON.parse(text.replace(/^\uFEFF/, ""));
+  } catch {
+    throw new ImportError("The file isn't valid JSON (it may be cut off or not a diagram).");
+  }
+  return importValue(raw);
 }
 export function importValue(raw: unknown): Diagram {
   if (isSpec(raw)) {
@@ -51,12 +96,16 @@ export function importValue(raw: unknown): Diagram {
     raw && typeof raw === "object" && (raw as { format?: unknown }).format === "isoboard"
       ? (raw as { diagram?: unknown }).diagram
       : raw;
-  const diagram = schema.parse(body);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]!;
+    const where = issue.path.length ? ` (at ${issue.path.join(".")})` : "";
+    throw new ImportError(`It doesn't look like an Isoboard diagram: ${issue.message}${where}.`);
+  }
+  const diagram = parsed.data as Diagram;
   const ids = new Set(diagram.nodes.map((n) => n.id));
-  if (
-    ids.size !== diagram.nodes.length ||
-    diagram.edges.some((e) => !ids.has(e.from) || !ids.has(e.to))
-  )
-    throw new Error("Invalid references");
+  if (ids.size !== diagram.nodes.length) throw new ImportError("Two blocks share the same id.");
+  // A connector whose end is missing is dropped rather than failing the whole file.
+  diagram.edges = diagram.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
   return diagram;
 }

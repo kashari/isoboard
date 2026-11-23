@@ -11,11 +11,12 @@ import {
   Presentation,
   Maximize,
   Minimize,
+  Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
 import { toggleFullscreen } from "@/lib/fullscreen";
-import { saveDiagram, openDiagram } from "./file-actions";
+import { saveDiagram, openDiagram, clearBoard } from "./file-actions";
 export function Logo() {
   return (
     <div className="brand">
@@ -133,6 +134,7 @@ export function Topbar({ onProjects, onExport }: { onProjects: () => void; onExp
                     [SaveAll, "Save as…", "Ctrl ⇧ S", () => void saveDiagram(true)],
                     [ImageDown, "Export…", "Ctrl E", onExport],
                     [FolderOpen, "My projects", "", onProjects],
+                    [Eraser, "Clear board", "", clearBoard],
                   ] as const
                 ).map(([Icon, label, keys, action]) => (
                   <Button

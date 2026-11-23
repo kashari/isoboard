@@ -57,6 +57,26 @@ export function Editor() {
     return () => clearTimeout(timer);
   }, [diagram, ready]);
   useEffect(() => {
+    // A file dropped anywhere (palette, inspector, top bar) opens instead of the browser
+    // navigating away to it; the canvas handles its own drops first.
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+    const dragover = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      const file = e.dataTransfer?.files[0];
+      if (file) void openDiagram(file);
+    };
+    window.addEventListener("dragover", dragover);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragover", dragover);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
+  useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
       // File shortcuts work everywhere, even while typing in a field.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !useDiagram.getState().presentation) {

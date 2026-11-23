@@ -89,40 +89,88 @@ export async function saveToDevice(diagram: Diagram, saveAs = false): Promise<st
 
 /** Reads a `.isoboard` (or older `.json`) diagram file; throws if it is not a valid diagram. */
 export async function readDiagramFile(file: File): Promise<Diagram> {
-  return importDiagram(await file.text());
+  return importDiagram(await readText(file));
 }
 
-/** Lets the user pick a diagram file. Returns null if they cancelled. */
+/** `Blob.text()` is missing in older Safari; FileReader works everywhere. */
+function readText(file: Blob): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Couldn't read the file."));
+    reader.readAsText(file);
+  });
+}
+
+/** Moves the remembered file of a diagram to a new id (when an opened file gets a fresh id). */
+export function rekeyHandle(from: string, to: string) {
+  const handle = handles.get(from);
+  if (handle) {
+    handles.delete(from);
+    handles.set(to, handle);
+  }
+}
+
+/**
+ * Lets the user pick a diagram file. Returns null if they cancelled.
+ *
+ * Uses the File System Access picker where there is one (so Ctrl S can write back to the same
+ * file) and a plain file input elsewhere. The input must be created and clicked in the same user
+ * gesture: browsers silently ignore a click that comes later, so a failing native picker is
+ * reported instead of falling back.
+ */
 export async function openFromDevice(): Promise<Diagram | null> {
   const { showOpenFilePicker } = pickers();
-  if (showOpenFilePicker) {
-    let handle: FileHandle | undefined;
+  if (showOpenFilePicker && window.self === window.top) {
+    let picked: FileHandle[];
     try {
-      [handle] = await showOpenFilePicker({
+      picked = await showOpenFilePicker({
         types: [
           {
             description: "Isoboard diagram",
             accept: { [MIME]: [EXT], "application/json": [".json"] },
           },
         ],
+        excludeAcceptAllOption: false,
       });
     } catch (e) {
       if (isAbort(e)) return null;
+      throw e;
     }
-    if (handle) {
-      const file = await handle.getFile();
-      const diagram = await readDiagramFile(file);
-      if (file.name.endsWith(EXT)) handles.set(diagram.id, handle);
-      return diagram;
-    }
+    const handle = picked[0];
+    if (!handle) return null;
+    const file = await handle.getFile();
+    const diagram = await readDiagramFile(file);
+    if (file.name.toLowerCase().endsWith(EXT)) handles.set(diagram.id, handle);
+    return diagram;
   }
-  const file = await new Promise<File | null>((resolve) => {
+  const file = await pickWithInput();
+  return file ? readDiagramFile(file) : null;
+}
+
+/** A hidden `<input type=file>`, kept in the page until the user picks or cancels. */
+function pickWithInput(): Promise<File | null> {
+  return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = `${EXT},.json,application/json`;
-    input.onchange = () => resolve(input.files?.[0] ?? null);
-    input.addEventListener("cancel", () => resolve(null));
+    input.style.display = "none";
+    let done = false;
+    const finish = (file: File | null) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener("focus", onFocus);
+      input.remove();
+      resolve(file);
+    };
+    // Browsers without the `cancel` event: focus returns to the page when the dialog closes;
+    // give `change` a moment to arrive first.
+    const onFocus = () => setTimeout(() => finish(input.files?.[0] ?? null), 1000);
+    input.addEventListener("change", () => finish(input.files?.[0] ?? null));
+    input.addEventListener("cancel", () => finish(null));
+    document.body.appendChild(input);
     input.click();
+    setTimeout(() => window.addEventListener("focus", onFocus, { once: true }), 0);
   });
-  return file ? readDiagramFile(file) : null;
 }

@@ -597,9 +597,9 @@ export function Canvas() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          // A dropped .isoboard / .json file opens that diagram.
+          // A dropped file opens as a diagram (a wrong file says why it can't).
           const file = e.dataTransfer.files[0];
-          if (file && /\.(isoboard|json)$/i.test(file.name)) {
+          if (file) {
             void openDiagram(file);
             return;
           }
