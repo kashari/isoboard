@@ -19,7 +19,7 @@ import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
 import { readRoute, autoRoutes, sameRoute } from "@/lib/routing";
-import { TAG_COLORS } from "@/lib/tags";
+import { TAG_COLORS, TAG_SIZES } from "@/lib/tags";
 /** Items whose sticker can label a connector: one entry per distinct icon, A–Z. */
 const labelItems = [
   ...new Map(Object.values(registry).map((e) => [e.icon, e.label] as const)).entries(),
@@ -466,8 +466,9 @@ export function Inspector() {
                   <textarea
                     aria-label="Price tag"
                     className="tag-field"
-                    rows={2}
-                    placeholder={"$9 / month\nfirst line is the headline (T)"}
+                    placeholder={
+                      "Headline on the first line (T)\nThen the note…\n- bullets start with -"
+                    }
                     value={String(node.data["tag"] ?? "")}
                     onChange={(e) =>
                       updateNode(node.id, { data: { ...node.data, tag: e.target.value } })
@@ -494,6 +495,30 @@ export function Inspector() {
                           );
                         })}
                       </div>
+                      <div className="tag-sizes" role="group" aria-label="Tag size">
+                        {TAG_SIZES.map((z) => (
+                          <Button
+                            key={z}
+                            variant="outline"
+                            size="sm"
+                            aria-pressed={
+                              node.data["tagWidth"] == null && (node.data["tagSize"] ?? "m") === z
+                            }
+                            className={
+                              node.data["tagWidth"] == null && (node.data["tagSize"] ?? "m") === z
+                                ? "tool-active"
+                                : ""
+                            }
+                            onClick={() => {
+                              // A preset replaces a width set by dragging the grip.
+                              const { tagWidth: _w, ...rest } = node.data;
+                              updateNode(node.id, { data: { ...rest, tagSize: z } });
+                            }}
+                          >
+                            {{ s: "Small", m: "Medium", l: "Large" }[z]}
+                          </Button>
+                        ))}
+                      </div>
                       <div className="tag-actions">
                         {node.data["tagAt"] !== undefined && (
                           <Button
@@ -512,7 +537,14 @@ export function Inspector() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const { tag: _t, tagColor: _c, tagAt: _a, ...rest } = node.data;
+                            const {
+                              tag: _t,
+                              tagColor: _c,
+                              tagAt: _a,
+                              tagSize: _z,
+                              tagWidth: _w,
+                              ...rest
+                            } = node.data;
                             updateNode(node.id, { data: rest });
                           }}
                         >

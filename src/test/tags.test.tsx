@@ -3,7 +3,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Canvas } from "@/components/isoboard/Canvas";
 import { Inspector } from "@/components/isoboard/Inspector";
 import { useDiagram } from "@/store/diagram";
-import { readTag, tagShape, TAG_HOME, TAG_PIN } from "@/lib/tags";
+import {
+  readTag,
+  tagShape,
+  wrap,
+  TAG_HOME,
+  TAG_PIN,
+  TAG_WIDTH,
+  TAG_MIN_W,
+  TAG_MAX_W,
+} from "@/lib/tags";
 import { buildSpec } from "@/lib/spec";
 import type { Node } from "@/types/diagram";
 
@@ -54,32 +63,59 @@ describe("price tags", () => {
     expect(readTag(block())).toBeNull();
     expect(readTag(block({ tag: "   " }))).toBeNull();
     const t = readTag(
-      block({ tag: " $9 \n\n small \n a\n b", tagColor: "nope", tagAt: { x: "x" } }),
+      block({
+        tag: "\n $9 / month \n\nFirst para\n\n- a\n\n",
+        tagColor: "nope",
+        tagSize: "xl",
+        tagAt: { x: "x" },
+      }),
     );
-    expect(t).toEqual({ lines: ["$9", "small", "a"], color: "kraft", at: TAG_HOME });
-    expect(readTag(block({ tag: "x".repeat(50) }))!.lines[0]).toHaveLength(30);
+    expect(t).toEqual({
+      head: "$9 / month",
+      body: ["First para", "", "- a"],
+      color: "kraft",
+      size: "m",
+      at: TAG_HOME,
+    });
   });
 
-  it("points the tag back at its pin on either side", () => {
-    const right = tagShape(["$9"], { x: TAG_PIN.x + 40, y: TAG_PIN.y + 20 });
-    const left = tagShape(["$9"], { x: TAG_PIN.x - 40, y: TAG_PIN.y + 20 });
-    expect(right.side).toBe(1);
-    expect(left.side).toBe(-1);
-    expect(right.tilt).toBeGreaterThan(0);
-    expect(left.tilt).toBe(-right.tilt);
-    // Text sits on the body, past the eyelet, whichever way the tag hangs.
-    expect(right.text[0]!.x).toBeGreaterThan(0);
-    expect(left.text[0]!.x).toBeLessThan(0);
-    expect(tagShape(["a", "b"], TAG_HOME).height).toBeGreaterThan(tagShape(["a"], TAG_HOME).height);
+  it("wraps words, hyphenates long ones and indents bullets", () => {
+    expect(wrap("the quick brown fox jumps", 10)).toEqual(["the quick", "brown fox", "jumps"]);
+    expect(wrap("abcdefghijkl", 5)).toEqual(["abcd-", "efgh-", "ijkl"]);
+    expect(wrap("• one two three", 8, "  ")).toEqual(["• one", "  two", "  three"]);
   });
 
-  it("T hangs a tag on the selected block; Enter saves, empty removes", () => {
+  it("lays out a big note: wider sizes, taller with more text, bullets, capped", () => {
+    const base = { head: "Costs", body: [], size: "m" as const, at: TAG_HOME };
+    const plain = tagShape(base);
+    expect(plain.width).toBe(120); // a short headline alone gets a snug card
+    expect(tagShape({ ...base, head: "h".repeat(40) }).width).toBe(TAG_WIDTH.m);
+    expect(plain.rule).toBe("");
+    const note = tagShape({ ...base, body: ["a ".repeat(80), "- bullet"] });
+    expect(note.height).toBeGreaterThan(plain.height + 80);
+    expect(note.rule).not.toBe("");
+    expect(note.text.some((t) => t.s.startsWith("• bullet"))).toBe(true);
+    // Every line fits inside the card.
+    const chars = Math.floor((TAG_WIDTH.m - 40) / (13.5 * 0.6));
+    expect(note.text.every((t) => t.s.length <= chars)).toBe(true);
+    expect(tagShape({ ...base, body: ["x"], size: "l" }).width).toBe(TAG_WIDTH.l);
+    const huge = tagShape({ ...base, body: Array.from({ length: 50 }, (_, i) => `line ${i}`) });
+    expect(huge.text.filter((t) => !t.head)).toHaveLength(18);
+    expect(huge.text.at(-1)!.s.endsWith("…")).toBe(true);
+    // The card swings slightly away from its pin.
+    expect(tagShape({ ...base, at: { x: TAG_PIN.x + 200, y: 0 } }).tilt).toBeLessThan(0);
+    expect(tagShape({ ...base, at: { x: TAG_PIN.x - 200, y: 0 } }).tilt).toBeGreaterThan(0);
+  });
+
+  it("T hangs a tag on the selected block; Ctrl Enter saves, empty removes", () => {
     const { container } = render(<Canvas />);
     act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" })));
     const editor = container.querySelector("textarea")!;
     expect(editor).toBeTruthy();
     fireEvent.change(editor, { target: { value: "$12 / month\n2 vCPU" } });
     fireEvent.keyDown(editor, { key: "Enter" });
+    expect(document.activeElement).toBe(editor); // plain Enter is a new line
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
     fireEvent.blur(editor);
     expect(data()["tag"]).toBe("$12 / month\n2 vCPU");
     expect(container.querySelectorAll(".price-tag")).toHaveLength(1);
@@ -123,11 +159,43 @@ describe("price tags", () => {
     expect(data()["tagAt"]).toBeUndefined();
   });
 
+  it("resizes a card by its corner grip: wider, clamped, re-wrapped, undoable", () => {
+    load(block({ tag: "Note\n" + "word ".repeat(40) }));
+    const { container } = render(<Canvas />);
+    const svg = container.querySelector("svg.diagram-canvas")!;
+    const lines = () => container.querySelectorAll(".tag-small").length;
+    const before = lines();
+    const zoom = () => useDiagram.getState().diagram.viewport.zoom;
+    const grip = container.querySelector(".tag-resize")!;
+    fireEvent.pointerDown(grip, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { clientX: 100 + 40 * zoom(), clientY: 100 });
+    expect(lines()).toBeLessThan(before); // re-wraps live while dragging
+    fireEvent.pointerUp(svg, { clientX: 100 + 40 * zoom(), clientY: 100 });
+    expect(data()["tagAt"]).toBeUndefined(); // resizing doesn't move it
+    expect(data()["tagWidth"]).toBeCloseTo(TAG_WIDTH.m + 80, -1);
+
+    fireEvent.pointerDown(container.querySelector(".tag-resize")!, {
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+    fireEvent.pointerMove(svg, { clientX: -5000, clientY: 0 });
+    fireEvent.pointerUp(svg, { clientX: -5000, clientY: 0 });
+    expect(data()["tagWidth"]).toBe(TAG_MIN_W);
+    act(() => useDiagram.getState().undo());
+    expect(data()["tagWidth"]).toBeCloseTo(TAG_WIDTH.m + 80, -1);
+    expect(readTag(block({ tag: "x", tagWidth: 9999 }))!.width).toBe(TAG_MAX_W);
+  });
+
   it("the inspector recolours, re-hangs and removes a tag", () => {
     load(block({ tag: "$9", tagAt: { x: 1, y: 2 } }));
     const { getByLabelText, getByText } = render(<Inspector />);
     fireEvent.click(getByLabelText("pink tag"));
     expect(data()["tagColor"]).toBe("pink");
+    act(() => useDiagram.getState().updateNode("a", { data: { ...data(), tagWidth: 300 } }));
+    fireEvent.click(getByText("Large"));
+    expect(data()["tagSize"]).toBe("l");
+    expect(data()["tagWidth"]).toBeUndefined(); // a preset replaces a dragged width
     fireEvent.click(getByText("Re-hang"));
     expect(data()["tagAt"]).toBeUndefined();
     fireEvent.click(getByText("Remove tag"));

@@ -32,25 +32,26 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 
 ## Using it
 
-| Action                         | How                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| Add a block                    | Drag it from the palette, or click it                                          |
-| Connect                        | Use the connect tool, or drag from a block's handle to another block           |
-| Pan / zoom                     | Space + drag, or middle mouse; mouse wheel; fit-to-screen button               |
-| Undo / redo                    | Ctrl/⌘ Z · Ctrl/⌘ Shift Z                                                      |
-| Duplicate · copy · paste       | Ctrl/⌘ D · C · V                                                               |
-| Nudge · delete · deselect      | Arrow keys · Delete · Esc                                                      |
-| Rename                         | Double-click a block                                                           |
-| Price tag on a block           | Select it and press `T` (first line is the headline); drag the tag to move it  |
-| Step numbers on / off          | Numbered-list button in the canvas toolbar (reorder in the inspector)          |
-| Re-route a connector           | Drag any part of it sideways (grips show when selected); double-click to reset |
-| Label a connector with an item | Select it, pick one under **Label item** (shows that item's sticker)           |
-| Present                        | **Present** button or `P`                                                      |
-| Show / hide components         | `[`                                                                            |
-| Focus mode (canvas only)       | `F`                                                                            |
-| Browser full screen            | Full-screen button in the top bar, or `Shift F`                                |
-| Quick search                   | Ctrl/⌘ K                                                                       |
-| Play / pause flow animation    | Tap Space                                                                      |
+| Action                         | How                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| Add a block                    | Drag it from the palette, or click it                                            |
+| Connect                        | Use the connect tool, or drag from a block's handle to another block             |
+| Pan / zoom                     | Space + drag, or middle mouse; mouse wheel; fit-to-screen button                 |
+| Undo / redo                    | Ctrl/⌘ Z · Ctrl/⌘ Shift Z                                                        |
+| Duplicate · copy · paste       | Ctrl/⌘ D · C · V                                                                 |
+| Nudge · delete · deselect      | Arrow keys · Delete · Esc                                                        |
+| Rename                         | Double-click a block                                                             |
+| Note (price tag) on a block    | Select it and press `T`: headline, then the note; Ctrl Enter saves. Drag to move |
+| Resize a note                  | Drag its bottom-right corner (or pick Small / Medium / Large in the inspector)   |
+| Step numbers on / off          | Numbered-list button in the canvas toolbar (reorder in the inspector)            |
+| Re-route a connector           | Drag any part of it sideways (grips show when selected); double-click to reset   |
+| Label a connector with an item | Select it, pick one under **Label item** (shows that item's sticker)             |
+| Present                        | **Present** button or `P`                                                        |
+| Show / hide components         | `[`                                                                              |
+| Focus mode (canvas only)       | `F`                                                                              |
+| Browser full screen            | Full-screen button in the top bar, or `Shift F`                                  |
+| Quick search                   | Ctrl/⌘ K                                                                         |
+| Play / pause flow animation    | Tap Space                                                                        |
 
 Connectors start plain (no label) and find their own way: they route around blocks and their
 names, keep off each other's tracks, leave and enter blocks straight, and arrive at a block's

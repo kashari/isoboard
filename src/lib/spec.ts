@@ -10,7 +10,7 @@ import type {
 import { NODE_TYPES, EDGE_KINDS } from "@/types/diagram";
 import { registry } from "@/nodes/registry";
 import { defaultEdge, validate } from "./logic";
-import { TAG_COLORS, type TagColor } from "./tags";
+import { TAG_COLORS, TAG_SIZES, type TagColor, type TagSize } from "./tags";
 
 /**
  * Diagram specs: a compact description (nodes, zones, `"a -> b: label"` edges) that builds a
@@ -31,6 +31,7 @@ export interface SpecNode {
   /** A price tag hung on the block: first line headline, more lines small print. */
   tag?: string;
   tagColor?: string;
+  tagSize?: string;
   data?: Record<string, unknown>;
 }
 export interface SpecEdge {
@@ -162,6 +163,10 @@ export function buildSpec(input: unknown): Built {
     if (raw.tagColor) {
       if (TAG_COLORS.includes(raw.tagColor as TagColor)) data["tagColor"] = raw.tagColor;
       else errors.push(`Node "${id}": tagColor must be one of ${TAG_COLORS.join(", ")}`);
+    }
+    if (raw.tagSize) {
+      if (TAG_SIZES.includes(raw.tagSize as TagSize)) data["tagSize"] = raw.tagSize;
+      else errors.push(`Node "${id}": tagSize must be one of ${TAG_SIZES.join(", ")}`);
     }
     const at = raw.at;
     const pinned = Array.isArray(at) && at.length === 2 && at.every(Number.isInteger);

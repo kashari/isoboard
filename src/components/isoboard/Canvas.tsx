@@ -37,7 +37,7 @@ import {
 import { ValidationPanel } from "./ValidationPanel";
 import { openDiagram } from "./file-actions";
 import { PriceTag } from "./PriceTag";
-import { readTag, TAG_HOME, type Point } from "@/lib/tags";
+import { readTag, clampTagWidth, TAG_HOME, TAG_WIDTH, type Point } from "@/lib/tags";
 import type { Node, NodeType } from "@/types/diagram";
 
 // The grid never changes, so build it once as a single path. It spans ±GRID cells on both
@@ -76,12 +76,14 @@ interface SegmentDrag {
   j: number;
   moved: boolean;
 }
-/** Dragging a price tag around its block. */
+/** Dragging a price tag around its block, or resizing it by its corner grip. */
 interface TagDrag {
   id: string;
   start: Point;
   from: Point;
   at: Point;
+  /** Set while resizing: the width when the drag started, and now. */
+  resize?: { from: number; width: number };
 }
 export function Canvas() {
   const {
@@ -319,10 +321,17 @@ export function Canvas() {
     const p = coordinates(e.clientX, e.clientY);
     const t = tagDragRef.current;
     if (t) {
-      setTagDrag({
-        ...t,
-        at: { x: t.from.x + p.x - t.start.x, y: t.from.y + p.y - t.start.y },
-      });
+      // The card is centred on its eyelet, so the grip follows the pointer at twice the width.
+      if (t.resize)
+        setTagDrag({
+          ...t,
+          resize: { ...t.resize, width: clampTagWidth(t.resize.from + 2 * (p.x - t.start.x)) },
+        });
+      else
+        setTagDrag({
+          ...t,
+          at: { x: t.from.x + p.x - t.start.x, y: t.from.y + p.y - t.start.y },
+        });
       return;
     }
     if (connecting) setPointer(p);
@@ -345,8 +354,16 @@ export function Canvas() {
   }
   function finish(e: React.PointerEvent<SVGSVGElement>) {
     if (tagDrag) {
-      const { id, at, from } = tagDrag;
-      if (at.x !== from.x || at.y !== from.y)
+      const { id, at, from, resize } = tagDrag;
+      if (resize) {
+        if (resize.width !== resize.from)
+          commit((d) => ({
+            ...d,
+            nodes: d.nodes.map((n) =>
+              n.id === id ? { ...n, data: { ...n.data, tagWidth: resize.width } } : n,
+            ),
+          }));
+      } else if (at.x !== from.x || at.y !== from.y)
         commit((d) => ({
           ...d,
           nodes: d.nodes.map((n) =>
@@ -430,11 +447,17 @@ export function Canvas() {
       setMarquee(null);
     }
   }
-  function startTag(e: React.PointerEvent<SVGGElement>, node: Node, at: Point) {
+  function startTag(e: React.PointerEvent<SVGGElement>, node: Node, at: Point, width?: number) {
     if (e.button !== 0 || space.current || tool === "pan" || presenting) return;
     e.stopPropagation();
     selectNodes([node.id]);
-    setTagDrag({ id: node.id, start: coordinates(e.clientX, e.clientY), from: at, at });
+    setTagDrag({
+      id: node.id,
+      start: coordinates(e.clientX, e.clientY),
+      from: at,
+      at,
+      ...(width !== undefined ? { resize: { from: width, width } } : {}),
+    });
     try {
       svgRef.current?.setPointerCapture(e.pointerId);
     } catch {
@@ -973,7 +996,11 @@ export function Canvas() {
             if (!tag && !editing) return null;
             const p = project(n.gx, n.gy, n.gz);
             const dragging = tagDrag?.id === n.id;
-            const shown = tag && { ...tag, at: dragging ? tagDrag.at : tag.at };
+            const shown = tag && {
+              ...tag,
+              at: dragging ? tagDrag.at : tag.at,
+              ...(dragging && tagDrag.resize ? { width: tagDrag.resize.width } : {}),
+            };
             const at = shown?.at ?? TAG_HOME;
             return (
               <g key={n.id} transform={`translate(${p.x} ${p.y})`}>
@@ -986,6 +1013,7 @@ export function Canvas() {
                       presenting ? nodeState(n) : "",
                     ].join(" ")}
                     onPointerDown={(e) => startTag(e, n, tag.at)}
+                    onResizeStart={presenting ? undefined : (e, w) => startTag(e, n, tag.at, w)}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
                       setTagEdit({ id: n.id, text: String(n.data["tag"] ?? "") });
@@ -993,19 +1021,27 @@ export function Canvas() {
                   />
                 )}
                 {editing && (
-                  <foreignObject x={at.x - 14} y={at.y - 20} width="200" height="74">
+                  <foreignObject
+                    x={at.x - Math.max(260, shown?.width ?? TAG_WIDTH[shown?.size ?? "m"]) / 2}
+                    y={at.y + 16}
+                    width={Math.max(260, shown?.width ?? TAG_WIDTH[shown?.size ?? "m"])}
+                    height="190"
+                  >
                     <textarea
                       autoFocus
                       className="tag-editor"
                       aria-label="Price tag text"
-                      placeholder={"$9 / month\nsmall print…"}
+                      title="Ctrl Enter or click away to save · Esc cancels"
+                      placeholder={
+                        "Headline on the first line\nThen the note itself, as long as you like.\n- lines starting with - are bullets"
+                      }
                       value={tagEdit.text}
                       onChange={(e) => setTagEdit({ id: n.id, text: e.target.value })}
                       onPointerDown={(e) => e.stopPropagation()}
                       onBlur={(e) => saveTag(n.id, e.target.value)}
                       onKeyDown={(e) => {
                         e.stopPropagation();
-                        if (e.key === "Enter" && !e.shiftKey) {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
                           e.currentTarget.blur();
                         }
