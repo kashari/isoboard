@@ -11,6 +11,7 @@ import {
   ArrowDown,
   RotateCcw,
   FlipHorizontal2,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
@@ -18,6 +19,7 @@ import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
 import { readRoute, autoRoutes, sameRoute } from "@/lib/routing";
+import { TAG_COLORS } from "@/lib/tags";
 /** Items whose sticker can label a connector: one entry per distinct icon, A–Z. */
 const labelItems = [
   ...new Map(Object.values(registry).map((e) => [e.icon, e.label] as const)).entries(),
@@ -450,6 +452,76 @@ export function Inspector() {
                       />
                     </label>
                   ))}
+                </div>
+              )}
+              {node.type !== "zone" && (
+                <div className="field-section">
+                  <div className="section-title">
+                    <span>
+                      <Tag size={13} />
+                      PRICE TAG
+                    </span>
+                    <ChevronDown size={13} />
+                  </div>
+                  <textarea
+                    aria-label="Price tag"
+                    className="tag-field"
+                    rows={2}
+                    placeholder={"$9 / month\nfirst line is the headline (T)"}
+                    value={String(node.data["tag"] ?? "")}
+                    onChange={(e) =>
+                      updateNode(node.id, { data: { ...node.data, tag: e.target.value } })
+                    }
+                  />
+                  {typeof node.data["tag"] === "string" && node.data["tag"].trim() && (
+                    <>
+                      <div className="color-swatches tag-swatches">
+                        {TAG_COLORS.map((c) => {
+                          const on = (node.data["tagColor"] ?? "kraft") === c;
+                          return (
+                            <Button
+                              key={c}
+                              variant="ghost"
+                              title={c}
+                              aria-label={`${c} tag`}
+                              className={`color-swatch tag-swatch tag-${c} ${on ? "swatch-selected" : ""}`}
+                              onClick={() =>
+                                updateNode(node.id, { data: { ...node.data, tagColor: c } })
+                              }
+                            >
+                              {on && <span>✓</span>}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <div className="tag-actions">
+                        {node.data["tagAt"] !== undefined && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const { tagAt: _at, ...rest } = node.data;
+                              updateNode(node.id, { data: rest });
+                            }}
+                          >
+                            <RotateCcw />
+                            Re-hang
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const { tag: _t, tagColor: _c, tagAt: _a, ...rest } = node.data;
+                            updateNode(node.id, { data: rest });
+                          }}
+                        >
+                          <X />
+                          Remove tag
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               <div className="field-section">

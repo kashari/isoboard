@@ -36,6 +36,8 @@ import {
 } from "@/lib/routing";
 import { ValidationPanel } from "./ValidationPanel";
 import { openDiagram } from "./file-actions";
+import { PriceTag } from "./PriceTag";
+import { readTag, TAG_HOME, type Point } from "@/lib/tags";
 import type { Node, NodeType } from "@/types/diagram";
 
 // The grid never changes, so build it once as a single path. It spans ±GRID cells on both
@@ -73,6 +75,13 @@ interface SegmentDrag {
   route: Route;
   j: number;
   moved: boolean;
+}
+/** Dragging a price tag around its block. */
+interface TagDrag {
+  id: string;
+  start: Point;
+  from: Point;
+  at: Point;
 }
 export function Canvas() {
   const {
@@ -113,6 +122,11 @@ export function Canvas() {
   const [segDrag, setSegDrag] = useState<SegmentDrag | null>(null);
   const segDragRef = useRef(segDrag);
   segDragRef.current = segDrag;
+  const [tagDrag, setTagDrag] = useState<TagDrag | null>(null);
+  const tagDragRef = useRef(tagDrag);
+  tagDragRef.current = tagDrag;
+  const [tagEdit, setTagEdit] = useState<{ id: string; text: string } | null>(null);
+  const tagCancel = useRef(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const flowRef = useRef<SVGGElement>(null);
@@ -192,6 +206,19 @@ export function Canvas() {
   }, [diagram.viewport, presenting, applyView]);
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      const typing =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement;
+      // T hangs a price tag on the selected block (or edits the one it has).
+      if ((e.key === "t" || e.key === "T") && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const s = useDiagram.getState();
+        const node = s.diagram.nodes.find((n) => n.id === s.selection[0]);
+        if (s.presentation || s.selection.length !== 1 || !node || node.type === "zone") return;
+        e.preventDefault();
+        setTagEdit({ id: node.id, text: String(node.data["tag"] ?? "") });
+        return;
+      }
       if (
         e.code === "Space" &&
         !(e.target instanceof HTMLInputElement) &&
@@ -281,8 +308,23 @@ export function Canvas() {
   function move(e: React.PointerEvent<SVGSVGElement>) {
     // Only track the pointer in state while something is being dragged — setting it on every
     // move re-rendered the whole canvas just from hovering.
-    if (!connecting && !drag.current && !marqueeRef.current && !segDragRef.current) return;
+    if (
+      !connecting &&
+      !drag.current &&
+      !marqueeRef.current &&
+      !segDragRef.current &&
+      !tagDragRef.current
+    )
+      return;
     const p = coordinates(e.clientX, e.clientY);
+    const t = tagDragRef.current;
+    if (t) {
+      setTagDrag({
+        ...t,
+        at: { x: t.from.x + p.x - t.start.x, y: t.from.y + p.y - t.start.y },
+      });
+      return;
+    }
     if (connecting) setPointer(p);
     const s = segDragRef.current;
     if (s) {
@@ -302,6 +344,20 @@ export function Canvas() {
     } else if (marqueeRef.current) setMarquee({ ...marqueeRef.current, endX: p.x, endY: p.y });
   }
   function finish(e: React.PointerEvent<SVGSVGElement>) {
+    if (tagDrag) {
+      const { id, at, from } = tagDrag;
+      if (at.x !== from.x || at.y !== from.y)
+        commit((d) => ({
+          ...d,
+          nodes: d.nodes.map((n) =>
+            n.id === id
+              ? { ...n, data: { ...n.data, tagAt: { x: Math.round(at.x), y: Math.round(at.y) } } }
+              : n,
+          ),
+        }));
+      setTagDrag(null);
+      return;
+    }
     if (segDrag) {
       if (segDrag.moved) {
         const { id, route } = segDrag;
@@ -373,6 +429,30 @@ export function Canvas() {
       selectNodes(e.shiftKey ? [...new Set([...selection, ...ids])] : ids);
       setMarquee(null);
     }
+  }
+  function startTag(e: React.PointerEvent<SVGGElement>, node: Node, at: Point) {
+    if (e.button !== 0 || space.current || tool === "pan" || presenting) return;
+    e.stopPropagation();
+    selectNodes([node.id]);
+    setTagDrag({ id: node.id, start: coordinates(e.clientX, e.clientY), from: at, at });
+    try {
+      svgRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released */
+    }
+  }
+  function saveTag(id: string, text: string) {
+    const node = diagram.nodes.find((n) => n.id === id);
+    setTagEdit(null);
+    if (tagCancel.current) {
+      tagCancel.current = false;
+      return;
+    }
+    if (!node || String(node.data["tag"] ?? "") === text.trim()) return;
+    const { tag: _tag, ...rest } = node.data;
+    useDiagram
+      .getState()
+      .updateNode(id, { data: text.trim() ? { ...rest, tag: text.trim() } : rest });
   }
   function adjustZoom(factor: number) {
     const svg = svgRef.current;
@@ -886,6 +966,60 @@ export function Canvas() {
                 );
               })}
           </g>
+          {/* Price tags hang over everything else: they're notes on the picture. */}
+          {blocks.map((n) => {
+            const tag = readTag(n);
+            const editing = tagEdit?.id === n.id;
+            if (!tag && !editing) return null;
+            const p = project(n.gx, n.gy, n.gz);
+            const dragging = tagDrag?.id === n.id;
+            const shown = tag && { ...tag, at: dragging ? tagDrag.at : tag.at };
+            const at = shown?.at ?? TAG_HOME;
+            return (
+              <g key={n.id} transform={`translate(${p.x} ${p.y})`}>
+                {shown && (
+                  <PriceTag
+                    tag={shown}
+                    className={[
+                      !presenting && selection.includes(n.id) ? "tag-selected" : "",
+                      dragging ? "tag-dragging" : "",
+                      presenting ? nodeState(n) : "",
+                    ].join(" ")}
+                    onPointerDown={(e) => startTag(e, n, tag.at)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setTagEdit({ id: n.id, text: String(n.data["tag"] ?? "") });
+                    }}
+                  />
+                )}
+                {editing && (
+                  <foreignObject x={at.x - 14} y={at.y - 20} width="200" height="74">
+                    <textarea
+                      autoFocus
+                      className="tag-editor"
+                      aria-label="Price tag text"
+                      placeholder={"$9 / month\nsmall print…"}
+                      value={tagEdit.text}
+                      onChange={(e) => setTagEdit({ id: n.id, text: e.target.value })}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onBlur={(e) => saveTag(n.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
+                        if (e.key === "Escape") {
+                          tagCancel.current = true;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  </foreignObject>
+                )}
+              </g>
+            );
+          })}
           {connectFrom && (
             <path
               className="connecting-line"

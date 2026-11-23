@@ -10,6 +10,7 @@ import type {
 import { NODE_TYPES, EDGE_KINDS } from "@/types/diagram";
 import { registry } from "@/nodes/registry";
 import { defaultEdge, validate } from "./logic";
+import { TAG_COLORS, type TagColor } from "./tags";
 
 /**
  * Diagram specs: a compact description (nodes, zones, `"a -> b: label"` edges) that builds a
@@ -27,6 +28,9 @@ export interface SpecNode {
   color?: string;
   icon?: string;
   badge?: string;
+  /** A price tag hung on the block: first line headline, more lines small print. */
+  tag?: string;
+  tagColor?: string;
   data?: Record<string, unknown>;
 }
 export interface SpecEdge {
@@ -154,6 +158,11 @@ export function buildSpec(input: unknown): Built {
       errors.push(`Node "${id}": color must be one of ${COLORS.join(", ")}`);
     const data: Record<string, unknown> = { ...(raw.data ?? {}) };
     if (raw.badge) data["badge"] = String(raw.badge);
+    if (raw.tag) data["tag"] = String(raw.tag);
+    if (raw.tagColor) {
+      if (TAG_COLORS.includes(raw.tagColor as TagColor)) data["tagColor"] = raw.tagColor;
+      else errors.push(`Node "${id}": tagColor must be one of ${TAG_COLORS.join(", ")}`);
+    }
     const at = raw.at;
     const pinned = Array.isArray(at) && at.length === 2 && at.every(Number.isInteger);
     if (at && !pinned) errors.push(`Node "${id}": \`at\` must be two integers [gx, gy]`);
