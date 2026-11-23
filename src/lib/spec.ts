@@ -6,11 +6,13 @@ import type {
   Node,
   NodeColor,
   NodeType,
+  Note,
+  NoteColor,
 } from "@/types/diagram";
 import { NODE_TYPES, EDGE_KINDS } from "@/types/diagram";
 import { registry } from "@/nodes/registry";
 import { defaultEdge, validate } from "./logic";
-import { TAG_COLORS, TAG_SIZES, type TagColor, type TagSize } from "./tags";
+import { NOTE_COLORS, NOTE_SIZE, NEW_NOTE_OFFSET } from "./notes";
 
 /**
  * Diagram specs: a compact description (nodes, zones, `"a -> b: label"` edges) that builds a
@@ -28,10 +30,12 @@ export interface SpecNode {
   color?: string;
   icon?: string;
   badge?: string;
-  /** A price tag hung on the block: first line headline, more lines small print. */
+  /** A note attached to the block (`tag` is the older name). */
+  note?: string;
   tag?: string;
-  tagColor?: string;
-  tagSize?: string;
+  noteColor?: string;
+  /** Note size in canvas px, `[width, height]`. */
+  noteSize?: [number, number];
   data?: Record<string, unknown>;
 }
 export interface SpecEdge {
@@ -139,6 +143,7 @@ export function buildSpec(input: unknown): Built {
 
   // ── Nodes ──
   const nodes: Node[] = [];
+  const notes: Note[] = [];
   const ids = new Set<string>();
   for (const raw of spec.nodes) {
     const type = String(raw?.type) as NodeType;
@@ -159,14 +164,25 @@ export function buildSpec(input: unknown): Built {
       errors.push(`Node "${id}": color must be one of ${COLORS.join(", ")}`);
     const data: Record<string, unknown> = { ...(raw.data ?? {}) };
     if (raw.badge) data["badge"] = String(raw.badge);
-    if (raw.tag) data["tag"] = String(raw.tag);
-    if (raw.tagColor) {
-      if (TAG_COLORS.includes(raw.tagColor as TagColor)) data["tagColor"] = raw.tagColor;
-      else errors.push(`Node "${id}": tagColor must be one of ${TAG_COLORS.join(", ")}`);
-    }
-    if (raw.tagSize) {
-      if (TAG_SIZES.includes(raw.tagSize as TagSize)) data["tagSize"] = raw.tagSize;
-      else errors.push(`Node "${id}": tagSize must be one of ${TAG_SIZES.join(", ")}`);
+    const noteText = raw.note ?? raw.tag;
+    if (noteText) {
+      const color = (raw.noteColor ?? "yellow") as NoteColor;
+      if (!NOTE_COLORS.includes(color))
+        errors.push(`Node "${id}": noteColor must be one of ${NOTE_COLORS.join(", ")}`);
+      const size = raw.noteSize;
+      const [w, h] =
+        Array.isArray(size) && size.length === 2 && size.every((v) => Number.isFinite(v))
+          ? size
+          : [NOTE_SIZE.w, NOTE_SIZE.h];
+      notes.push({
+        id: newId(),
+        text: String(noteText),
+        color,
+        attach: id,
+        ...NEW_NOTE_OFFSET,
+        w: Math.max(90, Math.round(w)),
+        h: Math.max(56, Math.round(h)),
+      });
     }
     const at = raw.at;
     const pinned = Array.isArray(at) && at.length === 2 && at.every(Number.isInteger);
@@ -321,6 +337,7 @@ export function buildSpec(input: unknown): Built {
     // {0, 0} makes the editor fit the diagram to the screen when it opens.
     viewport: { x: 0, y: 0, zoom: 1 },
     ...(spec.steps ? { steps: true } : {}),
+    ...(notes.length ? { notes } : {}),
   };
   warnings.push(...validate(diagram).map((i) => i.message));
   return { diagram, errors, warnings };

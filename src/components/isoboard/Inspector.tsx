@@ -11,7 +11,6 @@ import {
   ArrowDown,
   RotateCcw,
   FlipHorizontal2,
-  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
@@ -19,7 +18,7 @@ import { registry, colors } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
 import { readRoute, autoRoutes, sameRoute } from "@/lib/routing";
-import { TAG_COLORS, TAG_SIZES } from "@/lib/tags";
+import { NOTE_COLORS, noteRect, pinPoint, placeNote } from "@/lib/notes";
 /** Items whose sticker can label a connector: one entry per distinct icon, A–Z. */
 const labelItems = [
   ...new Map(Object.values(registry).map((e) => [e.icon, e.label] as const)).entries(),
@@ -30,6 +29,24 @@ export function Inspector() {
     useDiagram();
   const node = diagram.nodes.find((n) => n.id === selection[0]);
   const edge = diagram.edges.find((e) => e.id === selectedEdge);
+  const { selectedNote, updateNote, commit } = useDiagram();
+  const note = diagram.notes?.find((n) => n.id === selectedNote);
+  /** Re-ties the note to another block (pointing at its top) or frees it (its line keeps
+   * pointing at the same spot); `line: false` drops the line altogether. */
+  const attachNote = (to: string, line = true) => {
+    if (!note) return;
+    const next = placeNote(
+      note,
+      noteRect(note, diagram.nodes),
+      diagram.nodes,
+      to || undefined,
+      to || !line ? null : undefined,
+    );
+    commit((d) => ({
+      ...d,
+      notes: (d.notes ?? []).map((n) => (n.id === note.id ? next : n)),
+    }));
+  };
   const fromCondition = edge && diagram.nodes.find((n) => n.id === edge.from)?.type === "condition";
   const stepIndex = edge ? diagram.edges.indexOf(edge) : -1;
   const edgeIcon = edge ? String(edge.data["icon"] ?? "") : "";
@@ -51,9 +68,73 @@ export function Inspector() {
       </Button>
       <aside className={`inspector-panel ${mobileOpen ? "mobile-inspector-open" : ""}`}>
         <div className="panel-heading">
-          <h2>{edge ? "Connection" : node ? "Block" : "Inspector"}</h2>
+          <h2>{note ? "Note" : edge ? "Connection" : node ? "Block" : "Inspector"}</h2>
         </div>
-        {edge ? (
+        {note ? (
+          <div className="inspector-scroll">
+            <div className="field-section">
+              <label>
+                TEXT
+                <textarea
+                  aria-label="Note text"
+                  className="note-field"
+                  placeholder="Write a note… (double-click it on the board too)"
+                  value={note.text}
+                  onChange={(e) => updateNote(note.id, { text: e.target.value })}
+                />
+              </label>
+              <label>COLOR</label>
+              <div className="color-swatches">
+                {NOTE_COLORS.map((c) => (
+                  <Button
+                    key={c}
+                    variant="ghost"
+                    title={c}
+                    aria-label={`${c} note`}
+                    className={`color-swatch note-swatch note-${c} ${note.color === c ? "swatch-selected" : ""}`}
+                    onClick={() => updateNote(note.id, { color: c })}
+                  >
+                    {note.color === c && <span>✓</span>}
+                  </Button>
+                ))}
+              </div>
+              <label>
+                ATTACHED TO
+                <select
+                  aria-label="Attached to"
+                  value={note.attach ?? ""}
+                  onChange={(e) => attachNote(e.target.value)}
+                >
+                  <option value="">Nothing (free note)</option>
+                  {diagram.nodes
+                    .filter((n) => n.type !== "zone")
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.label || registry[n.type].label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {pinPoint(note, diagram.nodes) && (
+                <Button variant="outline" size="sm" onClick={() => attachNote("", false)}>
+                  <X />
+                  Remove line
+                </Button>
+              )}
+              <span className="selection-description">
+                Drag the note to move it and its corners or edges to resize it. Drag the dot at the
+                end of its line (or the round handle above it) to any spot on a block or on the
+                board.
+              </span>
+            </div>
+            <div className="inspector-actions">
+              <Button variant="outline" onClick={remove}>
+                <Trash2 />
+                Delete note
+              </Button>
+            </div>
+          </div>
+        ) : edge ? (
           <div className="inspector-scroll">
             <div className="field-section">
               {fromCondition && (
@@ -452,108 +533,6 @@ export function Inspector() {
                       />
                     </label>
                   ))}
-                </div>
-              )}
-              {node.type !== "zone" && (
-                <div className="field-section">
-                  <div className="section-title">
-                    <span>
-                      <Tag size={13} />
-                      PRICE TAG
-                    </span>
-                    <ChevronDown size={13} />
-                  </div>
-                  <textarea
-                    aria-label="Price tag"
-                    className="tag-field"
-                    placeholder={
-                      "Headline on the first line (T)\nThen the note…\n- bullets start with -"
-                    }
-                    value={String(node.data["tag"] ?? "")}
-                    onChange={(e) =>
-                      updateNode(node.id, { data: { ...node.data, tag: e.target.value } })
-                    }
-                  />
-                  {typeof node.data["tag"] === "string" && node.data["tag"].trim() && (
-                    <>
-                      <div className="color-swatches tag-swatches">
-                        {TAG_COLORS.map((c) => {
-                          const on = (node.data["tagColor"] ?? "kraft") === c;
-                          return (
-                            <Button
-                              key={c}
-                              variant="ghost"
-                              title={c}
-                              aria-label={`${c} tag`}
-                              className={`color-swatch tag-swatch tag-${c} ${on ? "swatch-selected" : ""}`}
-                              onClick={() =>
-                                updateNode(node.id, { data: { ...node.data, tagColor: c } })
-                              }
-                            >
-                              {on && <span>✓</span>}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                      <div className="tag-sizes" role="group" aria-label="Tag size">
-                        {TAG_SIZES.map((z) => (
-                          <Button
-                            key={z}
-                            variant="outline"
-                            size="sm"
-                            aria-pressed={
-                              node.data["tagWidth"] == null && (node.data["tagSize"] ?? "m") === z
-                            }
-                            className={
-                              node.data["tagWidth"] == null && (node.data["tagSize"] ?? "m") === z
-                                ? "tool-active"
-                                : ""
-                            }
-                            onClick={() => {
-                              // A preset replaces a width set by dragging the grip.
-                              const { tagWidth: _w, ...rest } = node.data;
-                              updateNode(node.id, { data: { ...rest, tagSize: z } });
-                            }}
-                          >
-                            {{ s: "Small", m: "Medium", l: "Large" }[z]}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="tag-actions">
-                        {node.data["tagAt"] !== undefined && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const { tagAt: _at, ...rest } = node.data;
-                              updateNode(node.id, { data: rest });
-                            }}
-                          >
-                            <RotateCcw />
-                            Re-hang
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const {
-                              tag: _t,
-                              tagColor: _c,
-                              tagAt: _a,
-                              tagSize: _z,
-                              tagWidth: _w,
-                              ...rest
-                            } = node.data;
-                            updateNode(node.id, { data: rest });
-                          }}
-                        >
-                          <X />
-                          Remove tag
-                        </Button>
-                      </div>
-                    </>
-                  )}
                 </div>
               )}
               <div className="field-section">

@@ -25,8 +25,8 @@ export function Editor() {
   const clipboard = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const spaceStart = useRef(0);
   const togglePaletteRef = useRef(() => {});
-  const { diagram, selection, selectedEdge, presentation } = useDiagram();
-  const hasSelection = selection.length > 0 || selectedEdge !== null;
+  const { diagram, selection, selectedEdge, selectedNote, presentation } = useDiagram();
+  const hasSelection = selection.length > 0 || selectedEdge !== null || selectedNote !== null;
   useEffect(() => {
     useDiagram.getState().hydrate();
     // A #spec=… or #diagram=… link opens its diagram, now or whenever the hash changes.
@@ -177,7 +177,7 @@ export function Editor() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (s.selection.length || s.selectedEdge) s.remove();
+        if (s.selection.length || s.selectedEdge || s.selectedNote) s.remove();
       }
       const delta: Record<string, [number, number]> = {
         ArrowRight: [1, 0],

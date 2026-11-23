@@ -12,6 +12,7 @@ import {
   Pause,
   Grid2X2,
   ListOrdered,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
@@ -35,10 +36,20 @@ import {
   type Route,
 } from "@/lib/routing";
 import { ValidationPanel } from "./ValidationPanel";
+import { NotesLayer } from "./NotesLayer";
+import { noteRect, NEW_NOTE_OFFSET, NOTE_SIZE } from "@/lib/notes";
 import { openDiagram } from "./file-actions";
-import { PriceTag } from "./PriceTag";
-import { readTag, clampTagWidth, TAG_HOME, TAG_WIDTH, type Point } from "@/lib/tags";
-import type { Node, NodeType } from "@/types/diagram";
+import type { Diagram, Node, NodeType } from "@/types/diagram";
+
+/** Every note's corners, so fitting the view keeps them in frame. */
+const noteCorners = (d: Diagram) =>
+  (d.notes ?? []).flatMap((n) => {
+    const r = noteRect(n, d.nodes);
+    return [
+      { x: r.x, y: r.y + 100 },
+      { x: r.x + r.w, y: r.y + r.h - 70 },
+    ];
+  });
 
 // The grid never changes, so build it once as a single path. It spans ±GRID cells on both
 // axes, so the squares stay squares however far you pan.
@@ -76,15 +87,6 @@ interface SegmentDrag {
   j: number;
   moved: boolean;
 }
-/** Dragging a price tag around its block, or resizing it by its corner grip. */
-interface TagDrag {
-  id: string;
-  start: Point;
-  from: Point;
-  at: Point;
-  /** Set while resizing: the width when the drag started, and now. */
-  resize?: { from: number; width: number };
-}
 export function Canvas() {
   const {
     diagram,
@@ -98,6 +100,7 @@ export function Canvas() {
     setViewport,
     mode,
     presentation,
+    selectedNote,
   } = useDiagram();
   const presenting = presentation !== null;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -124,11 +127,7 @@ export function Canvas() {
   const [segDrag, setSegDrag] = useState<SegmentDrag | null>(null);
   const segDragRef = useRef(segDrag);
   segDragRef.current = segDrag;
-  const [tagDrag, setTagDrag] = useState<TagDrag | null>(null);
-  const tagDragRef = useRef(tagDrag);
-  tagDragRef.current = tagDrag;
-  const [tagEdit, setTagEdit] = useState<{ id: string; text: string } | null>(null);
-  const tagCancel = useRef(false);
+  const [noteEdit, setNoteEdit] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const flowRef = useRef<SVGGElement>(null);
@@ -152,7 +151,8 @@ export function Canvas() {
     const svg = svgRef.current;
     if (!svg || !zoomRef.current) return;
     const { width, height } = svg.getBoundingClientRect();
-    const box = frameOf(useDiagram.getState().diagram.nodes);
+    const d = useDiagram.getState().diagram;
+    const box = frameOf(d.nodes, noteCorners(d));
     const scale = Math.max(
       0.35,
       Math.min(1.45, (width - 110) / (box.x1 - box.x0), (height - 200) / (box.y1 - box.y0)),
@@ -212,13 +212,11 @@ export function Canvas() {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLSelectElement;
-      // T hangs a price tag on the selected block (or edits the one it has).
-      if ((e.key === "t" || e.key === "T") && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const s = useDiagram.getState();
-        const node = s.diagram.nodes.find((n) => n.id === s.selection[0]);
-        if (s.presentation || s.selection.length !== 1 || !node || node.type === "zone") return;
+      // N adds a note: tied to the selected block, or in the middle of the view.
+      if ((e.key === "n" || e.key === "N") && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (useDiagram.getState().presentation) return;
         e.preventDefault();
-        setTagEdit({ id: node.id, text: String(node.data["tag"] ?? "") });
+        createNoteRef.current();
         return;
       }
       if (
@@ -310,30 +308,8 @@ export function Canvas() {
   function move(e: React.PointerEvent<SVGSVGElement>) {
     // Only track the pointer in state while something is being dragged — setting it on every
     // move re-rendered the whole canvas just from hovering.
-    if (
-      !connecting &&
-      !drag.current &&
-      !marqueeRef.current &&
-      !segDragRef.current &&
-      !tagDragRef.current
-    )
-      return;
+    if (!connecting && !drag.current && !marqueeRef.current && !segDragRef.current) return;
     const p = coordinates(e.clientX, e.clientY);
-    const t = tagDragRef.current;
-    if (t) {
-      // The card is centred on its eyelet, so the grip follows the pointer at twice the width.
-      if (t.resize)
-        setTagDrag({
-          ...t,
-          resize: { ...t.resize, width: clampTagWidth(t.resize.from + 2 * (p.x - t.start.x)) },
-        });
-      else
-        setTagDrag({
-          ...t,
-          at: { x: t.from.x + p.x - t.start.x, y: t.from.y + p.y - t.start.y },
-        });
-      return;
-    }
     if (connecting) setPointer(p);
     const s = segDragRef.current;
     if (s) {
@@ -353,28 +329,6 @@ export function Canvas() {
     } else if (marqueeRef.current) setMarquee({ ...marqueeRef.current, endX: p.x, endY: p.y });
   }
   function finish(e: React.PointerEvent<SVGSVGElement>) {
-    if (tagDrag) {
-      const { id, at, from, resize } = tagDrag;
-      if (resize) {
-        if (resize.width !== resize.from)
-          commit((d) => ({
-            ...d,
-            nodes: d.nodes.map((n) =>
-              n.id === id ? { ...n, data: { ...n.data, tagWidth: resize.width } } : n,
-            ),
-          }));
-      } else if (at.x !== from.x || at.y !== from.y)
-        commit((d) => ({
-          ...d,
-          nodes: d.nodes.map((n) =>
-            n.id === id
-              ? { ...n, data: { ...n.data, tagAt: { x: Math.round(at.x), y: Math.round(at.y) } } }
-              : n,
-          ),
-        }));
-      setTagDrag(null);
-      return;
-    }
     if (segDrag) {
       if (segDrag.moved) {
         const { id, route } = segDrag;
@@ -447,36 +401,35 @@ export function Canvas() {
       setMarquee(null);
     }
   }
-  function startTag(e: React.PointerEvent<SVGGElement>, node: Node, at: Point, width?: number) {
-    if (e.button !== 0 || space.current || tool === "pan" || presenting) return;
-    e.stopPropagation();
-    selectNodes([node.id]);
-    setTagDrag({
-      id: node.id,
-      start: coordinates(e.clientX, e.clientY),
-      from: at,
-      at,
-      ...(width !== undefined ? { resize: { from: width, width } } : {}),
+  /** Adds a note and starts editing it. With one block selected, the note is tied to it. */
+  function createNote(at?: { x: number; y: number }) {
+    const s = useDiagram.getState();
+    const host =
+      !at && s.selection.length === 1
+        ? s.diagram.nodes.find((n) => n.id === s.selection[0] && n.type !== "zone")
+        : undefined;
+    let pos = at;
+    if (!pos) {
+      const rect = svgRef.current?.getBoundingClientRect();
+      pos = rect
+        ? coordinates(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        : { x: 0, y: 0 };
+    }
+    const id = newId();
+    s.addNote({
+      id,
+      text: "",
+      color: "yellow",
+      ...(host
+        ? { attach: host.id, ...NEW_NOTE_OFFSET }
+        : { x: Math.round(pos.x - NOTE_SIZE.w / 2), y: Math.round(pos.y - NOTE_SIZE.h / 2) }),
+      w: NOTE_SIZE.w,
+      h: NOTE_SIZE.h,
     });
-    try {
-      svgRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      /* pointer already released */
-    }
+    setNoteEdit(id);
   }
-  function saveTag(id: string, text: string) {
-    const node = diagram.nodes.find((n) => n.id === id);
-    setTagEdit(null);
-    if (tagCancel.current) {
-      tagCancel.current = false;
-      return;
-    }
-    if (!node || String(node.data["tag"] ?? "") === text.trim()) return;
-    const { tag: _tag, ...rest } = node.data;
-    useDiagram
-      .getState()
-      .updateNode(id, { data: text.trim() ? { ...rest, tag: text.trim() } : rest });
-  }
+  const createNoteRef = useRef(createNote);
+  createNoteRef.current = createNote;
   function adjustZoom(factor: number) {
     const svg = svgRef.current;
     if (svg && zoomRef.current) select(svg).call(zoomRef.current.scaleBy, factor);
@@ -673,6 +626,15 @@ export function Canvas() {
             {playing ? <Pause /> : <Play />}
           </Button>
           <Button
+            title="Add a note (N): tied to the selected block, or free"
+            aria-label="Add note"
+            variant="ghost"
+            size="icon"
+            onClick={() => createNote()}
+          >
+            <StickyNote />
+          </Button>
+          <Button
             title="Toggle grid"
             aria-label="Toggle grid"
             aria-pressed={grid}
@@ -696,6 +658,15 @@ export function Canvas() {
           if (!e.shiftKey) selectNodes([]);
           setMarquee({ x: p.x, y: p.y, endX: p.x, endY: p.y });
           e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onDoubleClick={(e) => {
+          // Double-click on empty board: a free note right there.
+          if (
+            presenting ||
+            (e.target !== e.currentTarget && !(e.target as Element).matches(".iso-grid"))
+          )
+            return;
+          createNote(coordinates(e.clientX, e.clientY));
         }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -805,6 +776,7 @@ export function Canvas() {
               <g
                 key={n.id}
                 aria-label={`Node ${n.label}`}
+                data-node-id={n.id}
                 role="graphics-symbol"
                 className={`diagram-node ${selected ? "selected" : ""} ${presenting ? nodeState(n) : ""}`}
                 transform={`translate(${p.x} ${p.y})`}
@@ -989,73 +961,17 @@ export function Canvas() {
                 );
               })}
           </g>
-          {/* Price tags hang over everything else: they're notes on the picture. */}
-          {blocks.map((n) => {
-            const tag = readTag(n);
-            const editing = tagEdit?.id === n.id;
-            if (!tag && !editing) return null;
-            const p = project(n.gx, n.gy, n.gz);
-            const dragging = tagDrag?.id === n.id;
-            const shown = tag && {
-              ...tag,
-              at: dragging ? tagDrag.at : tag.at,
-              ...(dragging && tagDrag.resize ? { width: tagDrag.resize.width } : {}),
-            };
-            const at = shown?.at ?? TAG_HOME;
-            return (
-              <g key={n.id} transform={`translate(${p.x} ${p.y})`}>
-                {shown && (
-                  <PriceTag
-                    tag={shown}
-                    className={[
-                      !presenting && selection.includes(n.id) ? "tag-selected" : "",
-                      dragging ? "tag-dragging" : "",
-                      presenting ? nodeState(n) : "",
-                    ].join(" ")}
-                    onPointerDown={(e) => startTag(e, n, tag.at)}
-                    onResizeStart={presenting ? undefined : (e, w) => startTag(e, n, tag.at, w)}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      setTagEdit({ id: n.id, text: String(n.data["tag"] ?? "") });
-                    }}
-                  />
-                )}
-                {editing && (
-                  <foreignObject
-                    x={at.x - Math.max(260, shown?.width ?? TAG_WIDTH[shown?.size ?? "m"]) / 2}
-                    y={at.y + 16}
-                    width={Math.max(260, shown?.width ?? TAG_WIDTH[shown?.size ?? "m"])}
-                    height="190"
-                  >
-                    <textarea
-                      autoFocus
-                      className="tag-editor"
-                      aria-label="Price tag text"
-                      title="Ctrl Enter or click away to save · Esc cancels"
-                      placeholder={
-                        "Headline on the first line\nThen the note itself, as long as you like.\n- lines starting with - are bullets"
-                      }
-                      value={tagEdit.text}
-                      onChange={(e) => setTagEdit({ id: n.id, text: e.target.value })}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onBlur={(e) => saveTag(n.id, e.target.value)}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                          e.preventDefault();
-                          e.currentTarget.blur();
-                        }
-                        if (e.key === "Escape") {
-                          tagCancel.current = true;
-                          e.currentTarget.blur();
-                        }
-                      }}
-                    />
-                  </foreignObject>
-                )}
-              </g>
-            );
-          })}
+          <NotesLayer
+            nodes={nodes}
+            notes={diagram.notes ?? []}
+            selected={selectedNote}
+            presenting={presenting}
+            zoom={diagram.viewport.zoom}
+            editing={noteEdit}
+            onEdit={setNoteEdit}
+            toCanvas={coordinates}
+            canDrag={() => !space.current && tool !== "pan"}
+          />
           {connectFrom && (
             <path
               className="connecting-line"

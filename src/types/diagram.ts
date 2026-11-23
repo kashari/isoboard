@@ -116,6 +116,22 @@ export interface Edge {
   kind: EdgeKind;
   data: Record<string, unknown>;
 }
+export type NoteColor = "yellow" | "pink" | "mint" | "sky" | "lavender" | "paper";
+/** A flat, hand-drawn note. `x, y` (top-left) are canvas px, relative to the block's origin when
+ * `attach` names a block. */
+export interface Note {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: NoteColor;
+  attach?: string | undefined;
+  /** Where the note's line ends: relative to the `attach` block's origin, or on the board when
+   * the note is free. Without it, an attached note points at the top of its block. */
+  pin?: { x: number; y: number } | undefined;
+}
 export interface Viewport {
   x: number;
   y: number;
@@ -129,4 +145,6 @@ export interface Diagram {
   viewport: Viewport;
   /** Show sequential step numbers (1, 2, 3…) on connectors, in `edges` order. */
   steps?: boolean | undefined;
+  /** Notes on the board (see lib/notes). */
+  notes?: Note[] | undefined;
 }

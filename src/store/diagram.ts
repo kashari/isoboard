@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { defaultEdge } from "@/lib/logic";
 import { shiftRoute } from "@/lib/routing";
-import type { Diagram, Node, Edge, Viewport, Mode } from "@/types/diagram";
+import { migrateTags, noteRect, placeNote } from "@/lib/notes";
+import type { Diagram, Node, Edge, Note, Viewport, Mode } from "@/types/diagram";
 interface State {
   diagram: Diagram;
   projects: Diagram[];
   selection: string[];
   selectedEdge: string | null;
+  selectedNote: string | null;
   past: Diagram[];
   future: Diagram[];
   playing: boolean;
@@ -23,6 +25,9 @@ interface State {
   setMode: (mode: Mode) => void;
   commit: (fn: (d: Diagram) => Diagram) => void;
   select: (ids: string[], edge?: string | null) => void;
+  selectNote: (id: string | null) => void;
+  addNote: (note: Note) => void;
+  updateNote: (id: string, patch: Partial<Note>) => void;
   updateNode: (id: string, patch: Partial<Node>) => void;
   updateEdge: (id: string, patch: Partial<Edge>) => void;
   addNode: (node: Node) => void;
@@ -68,12 +73,18 @@ export const useDiagram = create<State>((set, get) => ({
   projects: [],
   selection: [],
   selectedEdge: null,
+  selectedNote: null,
   past: [],
   future: [],
   playing: true,
   presentation: null,
   present: (step = 0) =>
-    set({ presentation: { step, follow: true }, selection: [], selectedEdge: null }),
+    set({
+      presentation: { step, follow: true },
+      selection: [],
+      selectedEdge: null,
+      selectedNote: null,
+    }),
   setPresentation: (patch) =>
     set((s) => (s.presentation ? { presentation: { ...s.presentation, ...patch } } : {})),
   stopPresenting: () => set({ presentation: null }),
@@ -96,7 +107,17 @@ export const useDiagram = create<State>((set, get) => ({
       future: [],
       saved: false,
     })),
-  select: (selection, selectedEdge = null) => set({ selection, selectedEdge }),
+  select: (selection, selectedEdge = null) => set({ selection, selectedEdge, selectedNote: null }),
+  selectNote: (selectedNote) => set({ selectedNote, selection: [], selectedEdge: null }),
+  addNote: (note) => {
+    get().commit((d) => ({ ...d, notes: [...(d.notes ?? []), note] }));
+    get().selectNote(note.id);
+  },
+  updateNote: (id, patch) =>
+    get().commit((d) => ({
+      ...d,
+      notes: (d.notes ?? []).map((n) => (n.id === id ? { ...n, ...patch } : n)),
+    })),
   updateNode: (id, patch) =>
     get().commit((d) => ({
       ...d,
@@ -143,13 +164,23 @@ export const useDiagram = create<State>((set, get) => ({
     }),
   toggleSteps: () => get().commit((d) => ({ ...d, steps: !d.steps })),
   remove: () => {
-    const { selection, selectedEdge } = get();
+    const { selection, selectedEdge, selectedNote } = get();
     get().commit((d) => ({
       ...d,
       nodes: d.nodes.filter((n) => !selection.includes(n.id)),
       edges: d.edges.filter(
         (e) => e.id !== selectedEdge && !selection.includes(e.from) && !selection.includes(e.to),
       ),
+      // A note stays where it is when its block goes; it just floats free.
+      ...(d.notes && {
+        notes: d.notes
+          .filter((n) => n.id !== selectedNote)
+          .map((n) =>
+            n.attach && selection.includes(n.attach)
+              ? placeNote(n, noteRect(n, d.nodes), d.nodes)
+              : n,
+          ),
+      }),
     }));
     get().select([]);
   },
@@ -195,7 +226,8 @@ export const useDiagram = create<State>((set, get) => ({
       const raw = localStorage.getItem("isoboard-projects");
       const current = localStorage.getItem("isoboard-current");
       const projects: Diagram[] = raw ? JSON.parse(raw) : [];
-      const diagram = projects.find((d) => d.id === current) ?? projects[0] ?? get().diagram;
+      const found = projects.find((d) => d.id === current) ?? projects[0];
+      const diagram = found ? migrateTags(found, newId) : get().diagram;
       const mode = localStorage.getItem("isoboard-mode");
       set({
         projects,
@@ -217,7 +249,15 @@ export const useDiagram = create<State>((set, get) => ({
     set({ projects: next, saved: true });
   },
   open: (diagram) =>
-    set({ diagram, selection: [], selectedEdge: null, past: [], future: [], saved: false }),
+    set({
+      diagram: migrateTags(diagram, newId),
+      selection: [],
+      selectedEdge: null,
+      selectedNote: null,
+      past: [],
+      future: [],
+      saved: false,
+    }),
   newProject: () => get().open(emptyDiagram()),
   deleteProject: (id) => {
     const next = get().projects.filter((d) => d.id !== id);

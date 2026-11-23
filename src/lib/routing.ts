@@ -10,7 +10,6 @@ import {
 } from "./isometric";
 import { edgeText } from "./logic";
 import { Field } from "./router";
-import { readTag, tagShape } from "./tags";
 
 /**
  * Connector routing. A route runs along the iso axes from block `a` to block `b`:
@@ -499,19 +498,6 @@ export function frameOf(nodes: Node[], extra: Point[] = []) {
       box.y0 = Math.min(box.y0, p.y - 52);
       box.y1 = Math.max(box.y1, p.y - 12);
     }
-  }
-  // Price tags hang off their blocks; keep the whole card in frame.
-  for (const n of nodes) {
-    const tag = readTag(n);
-    if (!tag) continue;
-    const p = project(n.gx, n.gy, n.gz),
-      s = tagShape(tag);
-    const x = p.x + tag.at.x,
-      y = p.y + tag.at.y;
-    box.x0 = Math.min(box.x0, x - s.width / 2 - 20);
-    box.x1 = Math.max(box.x1, x + s.width / 2 + 20);
-    box.y0 = Math.min(box.y0, y - 50);
-    box.y1 = Math.max(box.y1, y + s.height);
   }
   return Number.isFinite(box.x0) ? box : { x0: -350, y0: -200, x1: 350, y1: 200 };
 }

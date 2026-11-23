@@ -19,7 +19,7 @@ const UI_ONLY = [
   ".connecting-line",
   ".segment-grip",
   ".flow-dot",
-  ".tag-resize",
+  ".note-ui",
   "foreignObject",
   "title",
 ].join(",");
@@ -165,7 +165,8 @@ export interface SnapshotOptions {
 }
 
 /** Diagram parts that define the "whole diagram" area. */
-const CONTENT = ".diagram-zone, .diagram-node, .edge-line, .edge-head, .edge-tag, .price-tag";
+const CONTENT =
+  ".diagram-zone, .diagram-node, .edge-line, .edge-head, .edge-tag, .diagram-note, .note-link";
 const PAD = 40;
 
 /** Region of the canvas (CSS px, relative to the canvas) and output px per canvas px. */

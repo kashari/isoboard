@@ -3,6 +3,7 @@ import { NODE_TYPES, EDGE_KINDS, type Diagram, type NodeColor } from "@/types/di
 import { registry } from "@/nodes/registry";
 import { newId } from "@/store/diagram";
 import { buildSpec, isSpec } from "./spec";
+import { migrateTags, NOTE_COLORS, NOTE_MIN, NOTE_SIZE } from "./notes";
 const COLORS = ["amber", "blue", "lavender", "mint", "peach", "stone"] as const;
 /** A grid coordinate: numbers (or numeric strings) snapped to the grid; anything else is 0. */
 const cell = z.preprocess((v) => {
@@ -14,6 +15,25 @@ const record = z.preprocess(
   (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {}),
   z.record(z.unknown()),
 );
+const px = (fallback: number) =>
+  z.preprocess((v) => {
+    const n = typeof v === "string" ? Number(v) : v;
+    return typeof n === "number" && Number.isFinite(n) ? Math.round(n) : fallback;
+  }, z.number());
+const note = z.object({
+  id: z.preprocess((v) => (v == null || v === "" ? newId() : String(v)), z.string()),
+  text: text,
+  x: px(0),
+  y: px(0),
+  w: px(NOTE_SIZE.w).transform((w) => Math.max(NOTE_MIN.w, w)),
+  h: px(NOTE_SIZE.h).transform((h) => Math.max(NOTE_MIN.h, h)),
+  color: z.enum(NOTE_COLORS).catch("yellow"),
+  pin: z.object({ x: z.number().finite(), y: z.number().finite() }).optional().catch(undefined),
+  attach: z.preprocess(
+    (v) => (v == null || v === "" ? undefined : String(v)),
+    z.string().optional(),
+  ),
+});
 const schema = z.object({
   id: z.preprocess((v) => (v == null || v === "" ? newId() : String(v)), z.string()),
   name: z.preprocess((v) => (v == null || v === "" ? "Untitled" : String(v)), z.string()),
@@ -67,6 +87,17 @@ const schema = z.object({
         : { x: 0, y: 0, zoom: 1 },
     ),
   steps: z.boolean().optional().catch(undefined),
+  // A broken note is skipped rather than failing the file.
+  notes: z
+    .array(z.unknown())
+    .optional()
+    .catch(undefined)
+    .transform((list) =>
+      list?.flatMap((n) => {
+        const r = note.safeParse(n);
+        return r.success ? [r.data] : [];
+      }),
+    ),
 });
 /** A spec that can't be built; `message` says what to fix. */
 export class SpecError extends Error {}
@@ -107,5 +138,11 @@ export function importValue(raw: unknown): Diagram {
   if (ids.size !== diagram.nodes.length) throw new ImportError("Two blocks share the same id.");
   // A connector whose end is missing is dropped rather than failing the whole file.
   diagram.edges = diagram.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
-  return diagram;
+  // A note attached to a missing block floats free.
+  if (diagram.notes)
+    diagram.notes = diagram.notes.map((n) =>
+      n.attach && !ids.has(n.attach) ? { ...n, attach: undefined, pin: undefined } : n,
+    );
+  else delete diagram.notes;
+  return migrateTags(diagram, newId);
 }
