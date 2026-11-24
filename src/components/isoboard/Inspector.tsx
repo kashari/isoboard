@@ -71,7 +71,7 @@ export function Inspector() {
           <h2>{note ? "Note" : edge ? "Connection" : node ? "Block" : "Inspector"}</h2>
         </div>
         {note ? (
-          <div className="inspector-scroll">
+          <div className="inspector-scroll note-panel">
             <div className="field-section">
               <label>
                 TEXT

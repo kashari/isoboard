@@ -70,6 +70,15 @@ export function emptyDiagram(): Diagram {
     viewport: { x: 0, y: 0, zoom: 1 },
   };
 }
+/** A note left empty is thrown away when it loses the selection, like an empty text box on a
+ * whiteboard. */
+function dropEmptyNote(s: { selectedNote: string | null; diagram: Diagram }, next: string | null) {
+  const id = s.selectedNote;
+  if (!id || id === next) return {};
+  const note = s.diagram.notes?.find((n) => n.id === id);
+  if (!note || note.text.trim()) return {};
+  return { diagram: { ...s.diagram, notes: s.diagram.notes!.filter((n) => n.id !== id) } };
+}
 export const useDiagram = create<State>((set, get) => ({
   diagram: emptyDiagram(),
   projects: [],
@@ -109,8 +118,10 @@ export const useDiagram = create<State>((set, get) => ({
       future: [],
       saved: false,
     })),
-  select: (selection, selectedEdge = null) => set({ selection, selectedEdge, selectedNote: null }),
-  selectNote: (selectedNote) => set({ selectedNote, selection: [], selectedEdge: null }),
+  select: (selection, selectedEdge = null) =>
+    set({ ...dropEmptyNote(get(), null), selection, selectedEdge, selectedNote: null }),
+  selectNote: (selectedNote) =>
+    set({ ...dropEmptyNote(get(), selectedNote), selectedNote, selection: [], selectedEdge: null }),
   addNote: (note) => {
     get().commit((d) => ({ ...d, notes: [...(d.notes ?? []), note] }));
     get().selectNote(note.id);

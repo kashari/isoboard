@@ -177,9 +177,18 @@ export function NotesLayer({
           : "Note pinned to the board.",
       );
   }
-  function save(note: Note, value: string) {
+  function save(note: Note, value: string, next?: EventTarget | null) {
     onEdit(null);
     const s = useDiagram.getState();
+    // Moving on to the note's text box in the inspector: keep the note, it's being written
+    // there (an empty one is cleared away once something else is selected).
+    if (
+      !cancelled.current &&
+      !value.trim() &&
+      next instanceof Element &&
+      next.closest(".note-panel")
+    )
+      return;
     if (cancelled.current) {
       cancelled.current = false;
       if (note.text.trim()) return;
@@ -280,7 +289,7 @@ export function NotesLayer({
                   title="Ctrl Enter or click away to save · Esc cancels"
                   onChange={(e) => setText(e.target.value)}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onBlur={(e) => save(note, e.target.value)}
+                  onBlur={(e) => save(note, e.target.value, e.relatedTarget)}
                   onKeyDown={(e) => {
                     e.stopPropagation();
                     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();

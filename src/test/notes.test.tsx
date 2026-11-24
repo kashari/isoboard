@@ -201,6 +201,31 @@ describe("notes on the canvas", () => {
     expect(notes()).toHaveLength(1);
   });
 
+  it("writing a new note in the inspector keeps it (and the inspector open)", () => {
+    act(() => useDiagram.getState().select(["a"]));
+    const { container } = render(
+      <>
+        <Canvas />
+        <Inspector />
+      </>,
+    );
+    fireEvent.click(container.querySelector('[aria-label="Add note"]')!);
+    expect(notes()).toHaveLength(1);
+    const id = notes()[0]!.id;
+    const field = container.querySelector<HTMLTextAreaElement>("textarea.note-field")!;
+    // Clicking the inspector's text box takes the focus from the note's editor on the board.
+    fireEvent.blur(container.querySelector("textarea.note-editor")!, { relatedTarget: field });
+    expect(notes()).toHaveLength(1);
+    expect(useDiagram.getState().selectedNote).toBe(id);
+    fireEvent.change(field, { target: { value: "Cache for 5 min" } });
+    expect(notes()[0]!.text).toBe("Cache for 5 min");
+
+    // Left empty and deselected, a note is cleared away.
+    act(() => useDiagram.getState().updateNote(id, { text: "" }));
+    act(() => useDiagram.getState().select(["b"]));
+    expect(notes()).toHaveLength(0);
+  });
+
   it("double-clicking the empty board drops a free note there", () => {
     const { container } = render(<Canvas />);
     fireEvent.doubleClick(container.querySelector("svg.diagram-canvas")!, {
