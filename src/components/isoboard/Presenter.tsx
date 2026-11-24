@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
-import { presentableEdges } from "@/lib/routing";
-import { edgeText } from "@/lib/logic";
+import { presentationSteps } from "@/lib/routing";
+import { branchTone, edgeText } from "@/lib/logic";
 import { NodeIcon } from "@/nodes/NodeSolid";
 
 type Tool = "pointer" | "laser" | "ink";
@@ -42,13 +42,14 @@ const strokePath = (pts: Pt[]) =>
 /**
  * Presentation mode: full-screen, chrome-free, walking through the connectors in step order.
  * Step 0 is the overview, steps 1…n put one connector on stage (the camera follows it in
- * Canvas), the last step shows the full picture. Presenter tools: a laser pointer and
+ * Canvas); a condition's branches share one step and show together. The last step shows the
+ * full picture. Presenter tools: a laser pointer and
  * disappearing ink. Controls hide themselves when the mouse rests.
  */
 export function Presenter() {
   const diagram = useDiagram((s) => s.diagram);
   const presentation = useDiagram((s) => s.presentation)!;
-  const steps = presentableEdges(diagram.nodes, diagram.edges);
+  const steps = presentationSteps(diagram.nodes, diagram.edges);
   const last = steps.length ? steps.length + 1 : 0;
   const step = Math.min(presentation.step, last);
   const [tool, setTool] = useState<Tool>("pointer");
@@ -146,7 +147,10 @@ export function Presenter() {
     return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() };
   };
   const now = performance.now();
-  const edge = step >= 1 && step <= steps.length ? steps[step - 1]! : null;
+  const group = step >= 1 && step <= steps.length ? steps[step - 1]! : null;
+  const edge = group?.length === 1 ? group[0]! : null;
+  const branches = group && group.length > 1 ? group : null;
+  const source = group && diagram.nodes.find((n) => n.id === group[0]!.from);
   const name = (id: string) => diagram.nodes.find((n) => n.id === id)?.label || "Untitled";
   const note = edge ? String(edge.data["note"] ?? "").trim() : "";
   const label = edge ? edgeText(edge).trim() : "";
@@ -264,7 +268,33 @@ export function Presenter() {
 
       {step > 0 && (
         <div key={step} className="pres-caption" aria-live="polite">
-          {edge ? (
+          {branches ? (
+            <>
+              <span className="pres-badge">{step}</span>
+              <div>
+                <div className="pres-route">
+                  <strong>{name(branches[0]!.from)}</strong>
+                </div>
+                <ul className="pres-branches">
+                  {branches.map((b) => {
+                    const text = edgeText(b).trim();
+                    const tone = branchTone(b, source ?? undefined);
+                    return (
+                      <li key={b.id}>
+                        {text && (
+                          <span className={`pres-label ${tone ? `pres-label-${tone}` : ""}`}>
+                            {text}
+                          </span>
+                        )}
+                        <ArrowRight className="pres-arrow" size={16} strokeWidth={2.6} />
+                        <strong>{name(b.to)}</strong>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
+          ) : edge ? (
             <>
               <span className="pres-badge">{step}</span>
               <div>

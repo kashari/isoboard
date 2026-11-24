@@ -29,7 +29,7 @@ import {
   autoRoutes,
   sameRoute,
   shiftRoute,
-  presentableEdges,
+  presentationSteps,
   segmentDistance,
   frameOf,
   ICON_W,
@@ -549,17 +549,24 @@ export function Canvas() {
     : diagram.nodes;
 
   // ── Presentation: which connector is on stage, what is dimmed, where the camera goes ──
-  const steps = presenting ? presentableEdges(diagram.nodes, diagram.edges) : [];
+  // A step is one connector, or all of a condition's branches together.
+  const steps = presenting ? presentationSteps(diagram.nodes, diagram.edges) : [];
   const step = presentation?.step ?? 0;
   const finale = presenting && steps.length > 0 && step > steps.length;
   const current = presenting && step >= 1 && step <= steps.length ? steps[step - 1]! : null;
+  const onStage = new Set(current?.map((e) => e.id));
   // The overview (step 0) and the summary show every connector; steps reveal them in order.
   const full = finale || (presenting && step === 0);
   const shown = new Set(
-    presenting ? (full ? steps : steps.slice(0, Math.max(0, step))).map((e) => e.id) : [],
+    presenting ? (full ? steps : steps.slice(0, Math.max(0, step))).flat().map((e) => e.id) : [],
   );
-  const focusIds = new Set(current ? [current.from, current.to] : []);
-  const seenIds = new Set(steps.slice(0, Math.max(0, step - 1)).flatMap((e) => [e.from, e.to]));
+  const focusIds = new Set(current?.flatMap((e) => [e.from, e.to]));
+  const seenIds = new Set(
+    steps
+      .slice(0, Math.max(0, step - 1))
+      .flat()
+      .flatMap((e) => [e.from, e.to]),
+  );
   const nodeState = (n: Node) =>
     !current
       ? ""
@@ -578,11 +585,11 @@ export function Canvas() {
     override: segDrag && { id: segDrag.id, route: segDrag.route },
   }).filter((l) => !presenting || shown.has(l.edge.id));
   const edgeState = (id: string) =>
-    !presenting || full || !current ? "" : id === current.id ? "pres-current" : "pres-past";
+    !presenting || full || !current ? "" : onStage.has(id) ? "pres-current" : "pres-past";
 
   // Fly the camera to the connector on stage (or the whole diagram), and back afterwards.
   const followKey = presenting
-    ? `${step}:${presentation.follow ? (current?.id ?? "all") : "all"}`
+    ? `${step}:${presentation.follow ? (current?.[0]?.id ?? "all") : "all"}`
     : "";
   const [size, setSize] = useState(0);
   useEffect(() => {
@@ -608,15 +615,22 @@ export function Canvas() {
       return;
     }
     const s = useDiagram.getState();
-    const all = presentableEdges(s.diagram.nodes, s.diagram.edges);
+    const all = presentationSteps(s.diagram.nodes, s.diagram.edges);
     const st = s.presentation?.step ?? 0;
-    const on = s.presentation?.follow && st >= 1 && st <= all.length ? all[st - 1] : null;
+    const on = s.presentation?.follow && st >= 1 && st <= all.length ? all[st - 1]! : null;
     let box = frameOf(s.diagram.nodes);
     let maxZoom = 1.8;
     if (on) {
-      const ends = s.diagram.nodes.filter((n) => n.id === on.from || n.id === on.to);
-      const route = layoutEdges(s.diagram.nodes, [on])[0];
-      box = frameOf(ends, route?.points ?? []);
+      // Frame every connector on stage: a condition shows all its branches at once.
+      const ids = new Set(on.flatMap((e) => [e.from, e.to]));
+      const ends = s.diagram.nodes.filter((n) => ids.has(n.id));
+      const routes = layoutEdges(s.diagram.nodes, s.diagram.edges).filter((l) =>
+        on.some((e) => e.id === l.edge.id),
+      );
+      box = frameOf(
+        ends,
+        routes.flatMap((l) => l.points),
+      );
       maxZoom = 1.5;
     }
     const { width, height } = svg.getBoundingClientRect();
@@ -677,7 +691,7 @@ export function Canvas() {
   const blocks = depthSort(nodes).filter((n) => n.type !== "zone");
   const sketchy = (diagram.lines ?? "sketch") === "sketch";
   const selectedLayout = layouts.find((l) => l.edge.id === selectedEdge);
-  const showTag = (l: EdgeLayout) => !presenting || full || l.edge.id === current?.id;
+  const showTag = (l: EdgeLayout) => !presenting || full || onStage.has(l.edge.id);
   const connectFrom = connecting ? nodes.find((n) => n.id === connecting) : undefined;
   return (
     <main className={`canvas-area tool-${tool} ${presenting ? "presenting" : ""}`}>
@@ -885,7 +899,7 @@ export function Canvas() {
           })}
           <g ref={flowRef}>
             {layouts
-              .filter((l) => !presenting || l.edge.id === current?.id)
+              .filter((l) => !presenting || onStage.has(l.edge.id))
               .map((l) => (
                 <circle
                   key={l.edge.id}

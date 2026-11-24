@@ -2,7 +2,14 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Canvas } from "@/components/isoboard/Canvas";
 import { useDiagram } from "@/store/diagram";
-import { autoRoute, layoutEdges, routeSegments, sketchPath } from "@/lib/routing";
+import { Presenter } from "@/components/isoboard/Presenter";
+import {
+  autoRoute,
+  layoutEdges,
+  presentationSteps,
+  routeSegments,
+  sketchPath,
+} from "@/lib/routing";
 import { inside, nearestPort, portSpot, silhouette } from "@/lib/ports";
 import { branchTone, stepNumbers } from "@/lib/logic";
 import { project } from "@/lib/isometric";
@@ -21,6 +28,18 @@ if (!("PointerEvent" in window))
     value: class extends MouseEvent {
       pointerId = 1;
     },
+  });
+
+if (!("ResizeObserver" in window))
+  Object.defineProperty(window, "ResizeObserver", {
+    value: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
+if (!window.matchMedia)
+  Object.defineProperty(window, "matchMedia", {
+    value: () => ({ matches: true }),
   });
 
 const block = (id: string, gx: number, gy = 0, type: NodeType = "service"): Node => ({
@@ -231,6 +250,47 @@ describe("flowcharts", () => {
       "no",
       "",
     ]);
+  });
+
+  it("presents a condition's branches together, as one step", () => {
+    const { diagram } = buildSpec({
+      nodes: [
+        { id: "s", type: "start" },
+        { id: "q", type: "condition", label: "Valid?" },
+        { id: "y", type: "process", label: "Save" },
+        { id: "n", type: "ko", label: "Reject" },
+        { id: "e", type: "end" },
+      ],
+      edges: ["s -> q", "q -> y: true", "y -> e", "q -> n: false"],
+    });
+    const d = diagram!;
+    expect(presentationSteps(d.nodes, d.edges).map((g) => g.map((e) => e.to))).toEqual([
+      ["q"],
+      ["y", "n"],
+      ["e"],
+    ]);
+    act(() =>
+      useDiagram.setState({
+        diagram: d,
+        selection: [],
+        selectedEdge: null,
+        selectedNote: null,
+        presentation: { step: 2, follow: false },
+      }),
+    );
+    const { container, unmount } = render(
+      <>
+        <Canvas />
+        <Presenter />
+      </>,
+    );
+    expect(container.querySelectorAll(".edge-tag.pres-current").length).toBe(2);
+    const rows = [...container.querySelectorAll(".pres-branches li")].map((li) => li.textContent);
+    expect(rows).toEqual(["trueSave", "falseReject"]);
+    expect(container.querySelector(".pres-label-no")?.textContent).toBe("false");
+    expect(container.querySelector(".pres-count")?.textContent).toBe("2 / 3");
+    unmount();
+    act(() => useDiagram.getState().stopPresenting());
   });
 
   it("has KO, error and exception ends, and files keep them", () => {

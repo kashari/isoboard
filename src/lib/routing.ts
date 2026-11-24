@@ -582,6 +582,21 @@ export function presentableEdges(nodes: Node[], edges: Edge[]) {
   return edges.filter((e) => e.from !== e.to && ids.has(e.from) && ids.has(e.to));
 }
 
+/**
+ * The presentation's steps: one connector each, except that a condition's (or choice's)
+ * branches share one step, so all its ways out are shown together. Step k matches the
+ * step number shown on the connectors (`stepNumbers`).
+ */
+export function presentationSteps(nodes: Node[], edges: Edge[]): Edge[][] {
+  const numbers = stepNumbers(nodes, edges);
+  const steps: Edge[][] = [];
+  for (const e of presentableEdges(nodes, edges)) {
+    const k = numbers.get(e.id);
+    if (k !== undefined) (steps[k - 1] ??= []).push(e);
+  }
+  return steps.filter(Boolean);
+}
+
 /** Distance from `p` to segment `a`–`b`. */
 export function segmentDistance(p: Point, a: Point, b: Point) {
   const dx = b.x - a.x,

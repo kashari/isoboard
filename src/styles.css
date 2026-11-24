@@ -194,6 +194,12 @@ select {
   min-width: 0;
   outline: none;
   color: var(--foreground);
+  /* JetBrains Mono joins "->", "=>", "!=" … into one glyph; Chrome re-shapes it badly as you
+     type (a space after "->" left the "-" blank). Show exactly what is typed. */
+  font-variant-ligatures: none;
+  font-feature-settings:
+    "calt" 0,
+    "liga" 0;
 }
 input:focus,
 textarea:focus,
@@ -2872,6 +2878,29 @@ kbd {
 }
 .edge-chip.edge-chip-no {
   fill: oklch(0.87 0.08 25);
+}
+/* Presentation: a condition's branches on stage together, one per line. */
+.pres-branches {
+  display: grid;
+  gap: 5px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.pres-branches li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pres-branches strong {
+  font-weight: 800;
+}
+.pres-label.pres-label-yes {
+  background: oklch(0.88 0.1 150);
+}
+.pres-label.pres-label-no {
+  background: oklch(0.87 0.08 25);
 }
 
 /* Clean connectors (diagram.lines = "clean"): one smooth stroke and a solid arrowhead. */
