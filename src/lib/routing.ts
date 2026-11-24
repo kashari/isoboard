@@ -8,8 +8,19 @@ import {
   type Box,
   type Point,
 } from "./isometric";
-import { edgeText } from "./logic";
+import { edgeText, stepNumbers } from "./logic";
 import { Field } from "./router";
+import { random } from "./notes";
+import {
+  clipEnd,
+  clipStart,
+  readPort,
+  shapeOf,
+  sideOf,
+  silhouette,
+  type Port,
+  type Side,
+} from "./ports";
 
 /**
  * Connector routing. A route runs along the iso axes from block `a` to block `b`:
@@ -126,14 +137,32 @@ const lRoute = (a: Cell, b: Cell): Route => ({
   stops: [],
 });
 
+// Router directions: +gx, -gx, +gy, -gy.
+const OUT: Record<Side, number> = { "x+": 0, "x-": 1, "y+": 2, "y-": 3 };
+const IN: Record<Side, number> = { "x+": 1, "x-": 0, "y+": 3, "y-": 2 };
+/** The connector's pinned ends (see lib/ports). */
+export function edgePorts(data: Record<string, unknown>) {
+  return { from: readPort(data["fromPort"]), to: readPort(data["toPort"]) };
+}
+const endsOf = (p: { from: Port | null; to: Port | null }) => ({
+  ...(p.from ? { out: OUT[p.from.side] } : {}),
+  ...(p.to ? { in: IN[p.to.side] } : {}),
+});
+
 /**
  * The default route for one connector on its own: the cheapest path around the blocks in the way
- * (see lib/router), arriving at the front of the target when that is cheap.
+ * (see lib/router), arriving at the front of the target when that is cheap. Pinned ends make it
+ * leave and arrive through their sides.
  */
-export function autoRoute(a: Block, b: Block, blocks: Block[] = []): Route {
+export function autoRoute(
+  a: Block,
+  b: Block,
+  blocks: Block[] = [],
+  ports: { from: Port | null; to: Port | null } = { from: null, to: null },
+): Route {
   const all = solid(blocks);
   const field = new Field(all.some((n) => n.id === a.id) ? all : [...all, a, b], [a, b]);
-  const path = field.route(a, b);
+  const path = field.route(a, b, endsOf(ports));
   return path ? cellsToRoute(path) : lRoute(a, b);
 }
 
@@ -151,7 +180,7 @@ export function autoRoutes(nodes: Block[], edges: Edge[]): Map<string, Route> {
     edges
       .map(
         (e) =>
-          `${e.id}:${e.from}:${e.to}:${JSON.stringify(e.data["route"] ?? e.data["bend"] ?? "")}`,
+          `${e.id}:${e.from}:${e.to}:${JSON.stringify(e.data["route"] ?? e.data["bend"] ?? "")}:${JSON.stringify([e.data["fromPort"], e.data["toPort"]])}`,
       )
       .join("|");
   if (memo?.key === key) return memo.routes;
@@ -169,7 +198,7 @@ export function autoRoutes(nodes: Block[], edges: Edge[]): Map<string, Route> {
   });
   pending.sort((p, q) => p.len - q.len || p.i - q.i);
   for (const { e, a, b } of pending) {
-    const path = field.route(a, b);
+    const path = field.route(a, b, endsOf(edgePorts(e.data)));
     const route = path ? cellsToRoute(path) : lRoute(a, b);
     routes.set(e.id, route);
     field.occupy(routeCorners(a, b, route));
@@ -290,7 +319,7 @@ export function offsetPoints(segs: Segment[], offsets: number[]): Cell[] {
 }
 
 /** Polyline with rounded corners (radius `r`, shrunk on short segments). */
-export function roundedPath(pts: Point[], r = 12): string {
+export function roundedPath(pts: Point[], r = 20): string {
   if (pts.length < 3) return "M " + pts.map((p) => `${p.x} ${p.y}`).join(" L ");
   let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
   for (let i = 1; i < pts.length - 1; i++) {
@@ -308,8 +337,8 @@ export function roundedPath(pts: Point[], r = 12): string {
   return d + ` L ${last.x} ${last.y}`;
 }
 
-// How far (px along the route) a connector reaches into a block before it shows. Arriving
-// from behind, the block's body hides more of the line, so the route stops further out.
+// Fallback for blocks too close to clip at their outlines: how far (px along the route) a
+// connector reaches into a block before it shows.
 const SMALL_TYPES = new Set<NodeType>([
   "initial",
   "final",
@@ -330,8 +359,10 @@ export const LABEL_SIZE = 10;
 export const labelWidth = (text: string) => text.length * LABEL_SIZE * 0.6;
 /** Extra tag width for an item icon in front of the text. */
 export const ICON_W = 16;
-/** Arrowhead length (px); the line stops at its base. */
-export const HEAD = 13;
+/** How far the line stops short of the arrowhead's tip (px). A hand-drawn head is two open
+ * strokes, so the line runs right into them; a clean head is solid, so the line stops under
+ * its base (its round cap never pokes through). */
+export const HEAD = { sketch: 3, clean: 11 };
 
 export interface Arrow {
   x: number;
@@ -346,7 +377,11 @@ export interface EdgeLayout {
   custom: boolean;
   /** Screen polyline of the visible line (ends at the arrowhead bases). */
   points: Point[];
+  /** Where the connector meets each block's outline. */
+  ends: { from: Point; to: Point };
   path: string;
+  /** Two loose pencil passes along the path: the connector as drawn by hand. */
+  sketch: [string, string] | null;
   head: Arrow;
   tail: Arrow | null;
   /** One per visible segment: raw index `j`, its ends `p`/`q` and the grip at its midpoint. */
@@ -377,7 +412,12 @@ const arrowAt = (tip: Point, from: Point): Arrow => ({
 export function layoutEdges(
   nodes: Node[],
   edges: Edge[],
-  opts: { steps?: boolean; override?: { id: string; route: Route } | null } = {},
+  opts: {
+    steps?: boolean;
+    override?: { id: string; route: Route } | null;
+    /** "clean" skips the hand-drawn passes and stops lines under solid arrowheads. */
+    lines?: "sketch" | "clean";
+  } = {},
 ): EdgeLayout[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const auto = autoRoutes(nodes, edges);
@@ -386,17 +426,19 @@ export function layoutEdges(
       b = byId.get(edge.to);
     if (!a || !b || (a.gx === b.gx && a.gy === b.gy)) return [];
     const stored = readRoute(edge.data);
+    const ports = edgePorts(edge.data);
     const route =
       opts.override?.id === edge.id
         ? opts.override.route
-        : (stored ?? auto.get(edge.id) ?? autoRoute(a, b, nodes));
+        : (stored ?? auto.get(edge.id) ?? autoRoute(a, b, nodes, ports));
     const segs = routeSegments(a, b, route);
-    return segs.length ? [{ edge, index, a, b, route, custom: !!stored, segs }] : [];
+    return segs.length ? [{ edge, index, a, b, route, custom: !!stored, segs, ports }] : [];
   });
   const offsets = laneOffsets(items.map((it) => it.segs));
+  const numbers = opts.steps ? stepNumbers(nodes, edges) : null;
   const obstacles: Box[] = nodes.filter((n) => n.type !== "zone").flatMap(blockBoxes);
   const shaped = items.map((it, i) => {
-    const grid = offsetPoints(it.segs, offsets[i]!);
+    const grid = pinnedPoints(it.segs, offsets[i]!, it.a, it.b, it.ports);
     const screen = grid.map((g) => project(g.gx, g.gy));
     for (const c of screen.slice(1, -1))
       obstacles.push({ x0: c.x - 12, y0: c.y - 8, x1: c.x + 12, y1: c.y + 8 });
@@ -405,18 +447,27 @@ export function layoutEdges(
   return shaped.map((it) => {
     const { edge, a, b, screen } = it;
     const bidirectional = edge.style === "bidirectional";
-    const first = screen[1]!.y - screen[0]!.y < 0,
-      last = screen.at(-1)!.y - screen.at(-2)!.y > 0;
-    const tips = trimRoute(screen, reach(a, first), reach(b, last));
+    // The line shows from where it leaves one block's outline to where it meets the other's.
+    let tips = clipEnd(clipStart(screen, silhouette(a)), silhouette(b));
+    if (tips.length < 2 || pathLength(tips) < 16) {
+      const first = screen[1]!.y - screen[0]!.y < 0,
+        last = screen.at(-1)!.y - screen.at(-2)!.y > 0;
+      tips = trimRoute(screen, reach(a, first), reach(b, last));
+    }
+    const ends = { from: tips[0]!, to: tips.at(-1)! };
+    // A hair's gap, so the arrowhead's tip doesn't sink into the outline.
+    tips = trimRoute(tips, bidirectional ? 2 : 0, 2);
     const tip = tips.at(-1)!,
       start = tips[0]!;
     const head = arrowAt(tip, tips.at(-2)!);
     const tail = bidirectional ? arrowAt(start, tips[1]!) : null;
-    // The line stops under the arrowheads' bases so its round cap never pokes through.
-    const points = trimRoute(tips, bidirectional ? HEAD - 2 : 0, HEAD - 2);
+    const gap = HEAD[opts.lines ?? "sketch"];
+    const points = trimRoute(tips, bidirectional ? gap : 0, gap);
+    // (A straight route whose ends sit on different lines jogs: one grip spans it all.)
+    const jog = screen.length !== it.segs.length + 1;
     const grips = it.segs.map((seg, s) => {
-      const p = screen[s]!,
-        q = screen[s + 1]!;
+      const p = jog ? screen[0]! : screen[s]!,
+        q = jog ? screen.at(-1)! : screen[s + 1]!;
       // Prefer an inner (free) raw segment; end segments get a stop when grabbed.
       const m = it.route.stops.length;
       const j = seg.js.find((k) => k >= 1 && k <= m) ?? seg.js[0]!;
@@ -425,7 +476,7 @@ export function layoutEdges(
     // State-machine transitions carry no text label; a guarded one shows a diamond.
     const text = edge.kind === "transition" ? "" : edgeText(edge).trim();
     const guard = edge.kind === "transition" ? String(edge.data["guard"] ?? "").trim() : "";
-    const badge = opts.steps ? String(it.index + 1) : "";
+    const badge = numbers ? String(numbers.get(edge.id) ?? it.index + 1) : "";
     const badgeW = badge ? Math.max(20, labelWidth(badge) + 11) : 0;
     const icon = String(edge.data["icon"] ?? "").trim();
     const textW = text ? labelWidth(text) + 20 + (icon ? ICON_W : 0) : icon ? 22 : 0;
@@ -444,13 +495,85 @@ export function layoutEdges(
       route: it.route,
       custom: it.custom,
       points,
+      ends,
       path: roundedPath(points),
+      sketch:
+        opts.lines === "clean"
+          ? null
+          : [sketchPath(points, `${edge.id}:1`, 0.8), sketchPath(points, `${edge.id}:2`, 1.6)],
       head,
       tail,
       grips,
       tag: { x: spot.x, y: spot.y, text, guard, badge, badgeW, textW, icon },
     };
   });
+}
+
+/**
+ * A hand-drawn take on a polyline: corners nudged a little off, each run bowed slightly, still
+ * with round corners. The ends barely move, so the line still meets its block and arrowhead.
+ */
+export function sketchPath(pts: Point[], seed: string, wobble = 1): string {
+  const rnd = random(seed);
+  const j = (k: number) => (rnd() - 0.5) * k * wobble;
+  const last = pts.length - 1;
+  const out: Point[] = [];
+  pts.forEach((p, i) => {
+    const k = i === 0 || i === last ? 0.8 : 3.4;
+    const q = { x: p.x + j(k), y: p.y + j(k) };
+    const prev = out.at(-1);
+    if (prev) {
+      // Bow the run between the previous corner and this one.
+      const len = Math.hypot(q.x - prev.x, q.y - prev.y) || 1;
+      const bow = (rnd() - 0.5) * Math.min(9, len * 0.05) * wobble;
+      out.push({
+        x: (prev.x + q.x) / 2 + (-(q.y - prev.y) / len) * bow,
+        y: (prev.y + q.y) / 2 + ((q.x - prev.x) / len) * bow,
+      });
+    }
+    out.push(q);
+  });
+  const f = (v: number) => Math.round(v * 10) / 10;
+  return roundedPath(out.map((p) => ({ x: f(p.x), y: f(p.y) })));
+}
+
+const pathLength = (pts: Point[]) =>
+  pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i]!.x, p.y - pts[i]!.y), 0);
+
+/**
+ * `offsetPoints`, with pinned ends: the first and last segments move onto their port's line
+ * (when the route leaves or arrives through that port's side). A straight route whose two ends
+ * sit on different lines jogs across halfway.
+ */
+export function pinnedPoints(
+  segs: Segment[],
+  offsets: number[],
+  a: Pick<Node, "type">,
+  b: Pick<Node, "type">,
+  ports: { from: Port | null; to: Port | null },
+): Cell[] {
+  const o = [...offsets];
+  const first = segs[0]!,
+    last = segs.at(-1)!;
+  const dir = (s: Segment) => Math.sign(coord(s.q, s.axis) - coord(s.p, s.axis));
+  const across = (n: Pick<Node, "type">, p: Port) => p.at * (shapeOf(n)?.r ?? 0.5);
+  const fromOk = ports.from && ports.from.side === sideOf(first.axis, dir(first));
+  const toOk = ports.to && ports.to.side === sideOf(last.axis, -dir(last));
+  const oa = fromOk ? across(a, ports.from!) : o[0]!;
+  const ob = toOk ? across(b, ports.to!) : o.at(-1)!;
+  if (segs.length === 1) {
+    if (Math.abs(oa - ob) < 1e-6) return offsetPoints(segs, [oa]);
+    const shift = (p: Cell, v: number): Cell =>
+      first.axis === "x" ? { gx: p.gx, gy: p.gy + v } : { gx: p.gx + v, gy: p.gy };
+    const mid =
+      first.axis === "x"
+        ? { gx: (first.p.gx + first.q.gx) / 2, gy: first.p.gy }
+        : { gx: first.p.gx, gy: (first.p.gy + first.q.gy) / 2 };
+    return [shift(first.p, oa), shift(mid, oa), shift(mid, ob), shift(first.q, ob)];
+  }
+  o[0] = oa;
+  o[o.length - 1] = ob;
+  return offsetPoints(segs, o);
 }
 
 /** Connectors a presentation steps through, in order: both ends must exist. */

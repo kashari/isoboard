@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { defaultEdge } from "@/lib/logic";
 import { shiftRoute } from "@/lib/routing";
 import { migrateTags, noteRect, placeNote } from "@/lib/notes";
-import type { Diagram, Node, Edge, Note, Viewport, Mode } from "@/types/diagram";
+import type { Diagram, Node, Edge, Note, Viewport, Mode, LineStyle } from "@/types/diagram";
 interface State {
   diagram: Diagram;
   projects: Diagram[];
@@ -35,6 +35,8 @@ interface State {
   /** Moves a connector earlier (-1) or later (+1) in the step order. */
   moveEdgeStep: (id: string, delta: number) => void;
   toggleSteps: () => void;
+  /** Switches connectors between hand-drawn and clean lines. */
+  setLines: (lines: LineStyle) => void;
   remove: () => void;
   duplicate: () => void;
   undo: () => void;
@@ -163,6 +165,8 @@ export const useDiagram = create<State>((set, get) => ({
       return { ...d, edges };
     }),
   toggleSteps: () => get().commit((d) => ({ ...d, steps: !d.steps })),
+  setLines: (lines) =>
+    get().commit(({ lines: _old, ...d }) => (lines === "clean" ? { ...d, lines } : d)),
   remove: () => {
     const { selection, selectedEdge, selectedNote } = get();
     get().commit((d) => ({

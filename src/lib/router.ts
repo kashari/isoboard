@@ -155,9 +155,11 @@ export class Field {
 
   /**
    * Cheapest path from block `a` to block `b`, as the list of cells it visits (both ends
-   * included), or null when either end is off the field.
+   * included), or null when either end is off the field. `ends` pins the first move out of `a`
+   * and the last move into `b` to a direction (0…3: +gx, -gx, +gy, -gy) when a connector's end
+   * is fixed to one side of its block.
    */
-  route(a: Obstacle, b: Obstacle): Cell[] | null {
+  route(a: Obstacle, b: Obstacle, ends: { out?: number; in?: number } = {}): Cell[] | null {
     const { w, h } = this;
     const start = this.index(a.gx, a.gy),
       goal = this.index(b.gx, b.gy);
@@ -179,6 +181,7 @@ export class Field {
       ay = a.gy - this.y0;
     // Seed: the first move out of `a`, in each direction.
     for (let d = 0; d < 4; d++) {
+      if (ends.out !== undefined && d !== ends.out) continue;
       const x = ax + DX[d]!,
         y = ay + DY[d]!;
       if (x < 0 || y < 0 || x >= w || y >= h) continue;
@@ -197,7 +200,7 @@ export class Field {
       closed[s] = 1;
       const c = s >> 2,
         d = s & 3;
-      if (c === goal) {
+      if (c === goal && (ends.in === undefined || d === ends.in)) {
         end = s;
         break;
       }
@@ -212,6 +215,7 @@ export class Field {
           ns = nc * 4 + nd;
         if (closed[ns]) continue;
         let cost = g[s]! + this.stepCost(nc, nd, nx, ny, a, b, own, near);
+        if (c === goal) continue; // arrived the wrong way: never pass through the block
         if (nd !== d) {
           const gx = x + this.x0,
             gy = y + this.y0;

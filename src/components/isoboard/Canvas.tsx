@@ -13,6 +13,7 @@ import {
   Grid2X2,
   ListOrdered,
   StickyNote,
+  PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram, newId } from "@/store/diagram";
@@ -39,6 +40,8 @@ import { ValidationPanel } from "./ValidationPanel";
 import { NotesLayer } from "./NotesLayer";
 import { noteRect, NEW_NOTE_OFFSET, NOTE_SIZE } from "@/lib/notes";
 import { openDiagram } from "./file-actions";
+import { nearestPort, type Port } from "@/lib/ports";
+import { branchTone } from "@/lib/logic";
 import type { Diagram, Node, NodeType } from "@/types/diagram";
 
 /** Every note's corners, so fitting the view keeps them in frame. */
@@ -70,7 +73,13 @@ const transformAttr = (v: { x: number; y: number; zoom: number }) =>
   `translate(${v.x} ${v.y}) scale(${v.zoom})`;
 const DASH: Record<string, string | undefined> = { dashed: "9 7", dotted: "0.1 7.5" };
 // A chunky storybook arrowhead pointing along +x, tip at the origin.
-const HEAD_PATH = "M 1.5 0 L -12 -7.5 Q -8.5 0 -12 7.5 Z";
+// Clean: a chunky solid head pointing along +x, tip at the origin.
+const SOLID_HEAD = "M 1.5 0 L -12 -7.5 Q -8.5 0 -12 7.5 Z";
+// Hand-drawn and open, like a quick pen stroke: two passes that don't quite agree.
+const HEAD_PATHS = [
+  "M -14 -8 Q -6.5 -3.6 0 0 Q -6.8 3.4 -14.2 7.6",
+  "M -13.2 -7.2 L 0.6 0.4 L -13.8 8.3",
+];
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 interface DragState {
@@ -86,6 +95,22 @@ interface SegmentDrag {
   route: Route;
   j: number;
   moved: boolean;
+}
+/** Dragging one end of a connector to a spot on a block (or onto another block). */
+interface EndDrag {
+  id: string;
+  end: "from" | "to";
+  /** The block under the pointer, with the spot on it nearest the pointer. */
+  node: string | null;
+  port: Port | null;
+  pointer: { x: number; y: number };
+  moved: boolean;
+}
+/** The connector as it would be with its end dropped where `d` says. */
+function withEnd(edge: Diagram["edges"][number], d: EndDrag) {
+  if (!d.node || !d.port) return edge;
+  const { bend: _b, route: _r, ...data } = edge.data;
+  return { ...edge, [d.end]: d.node, data: { ...data, [`${d.end}Port`]: d.port } };
 }
 export function Canvas() {
   const {
@@ -127,6 +152,9 @@ export function Canvas() {
   const [segDrag, setSegDrag] = useState<SegmentDrag | null>(null);
   const segDragRef = useRef(segDrag);
   segDragRef.current = segDrag;
+  const [endDrag, setEndDrag] = useState<EndDrag | null>(null);
+  const endDragRef = useRef(endDrag);
+  endDragRef.current = endDrag;
   const [noteEdit, setNoteEdit] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
@@ -308,9 +336,25 @@ export function Canvas() {
   function move(e: React.PointerEvent<SVGSVGElement>) {
     // Only track the pointer in state while something is being dragged — setting it on every
     // move re-rendered the whole canvas just from hovering.
-    if (!connecting && !drag.current && !marqueeRef.current && !segDragRef.current) return;
+    if (
+      !connecting &&
+      !drag.current &&
+      !marqueeRef.current &&
+      !segDragRef.current &&
+      !endDragRef.current
+    )
+      return;
     const p = coordinates(e.clientX, e.clientY);
     if (connecting) setPointer(p);
+    const ed = endDragRef.current;
+    if (ed) {
+      const edge = diagram.edges.find((x) => x.id === ed.id);
+      const other = ed.end === "from" ? edge?.to : edge?.from;
+      const target = blockUnder(e.clientX, e.clientY, p, other);
+      const port = target ? nearestPort(target, p) : null;
+      setEndDrag({ ...ed, node: target?.id ?? null, port, pointer: p, moved: true });
+      return;
+    }
     const s = segDragRef.current;
     if (s) {
       const g = unproject(p.x, p.y);
@@ -329,6 +373,20 @@ export function Canvas() {
     } else if (marqueeRef.current) setMarquee({ ...marqueeRef.current, endX: p.x, endY: p.y });
   }
   function finish(e: React.PointerEvent<SVGSVGElement>) {
+    if (endDrag) {
+      setEndDrag(null);
+      const edge = diagram.edges.find((x) => x.id === endDrag.id);
+      if (!edge || !endDrag.moved || !endDrag.node) return;
+      const next = withEnd(edge, endDrag);
+      commit((d) => ({ ...d, edges: d.edges.map((x) => (x.id === edge.id ? next : x)) }));
+      const n = diagram.nodes.find((x) => x.id === endDrag.node);
+      useDiagram
+        .getState()
+        .notify(
+          `Connector ${endDrag.end === "from" ? "starts" : "ends"} on ${n?.label || "the block"}, right where you dropped it.`,
+        );
+      return;
+    }
     if (segDrag) {
       if (segDrag.moved) {
         const { id, route } = segDrag;
@@ -434,6 +492,52 @@ export function Canvas() {
     const svg = svgRef.current;
     if (svg && zoomRef.current) select(svg).call(zoomRef.current.scaleBy, factor);
   }
+  /** The block under the pointer (not `except`): whatever is drawn there, or without hit
+   * testing (tests) the nearest block within reach. */
+  function blockUnder(
+    clientX: number,
+    clientY: number,
+    p: { x: number; y: number },
+    except?: string,
+  ) {
+    const ok = (n: Node | undefined) => !!n && n.type !== "zone" && n.id !== except;
+    if (typeof document.elementsFromPoint === "function") {
+      for (const el of document.elementsFromPoint(clientX, clientY)) {
+        const id = el.closest("[data-node-id]")?.getAttribute("data-node-id");
+        const n = id ? diagram.nodes.find((x) => x.id === id) : undefined;
+        if (ok(n)) return n;
+      }
+    }
+    let best: Node | undefined,
+      dist = 70;
+    for (const n of diagram.nodes) {
+      if (!ok(n)) continue;
+      const q = project(n.gx, n.gy);
+      const d = Math.hypot(q.x - p.x, q.y + 10 - p.y);
+      if (d < dist) [best, dist] = [n, d];
+    }
+    return best;
+  }
+  /** Starts dragging one end of the selected connector. */
+  function startEnd(e: React.PointerEvent, layout: EdgeLayout, end: "from" | "to") {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const p = coordinates(e.clientX, e.clientY);
+    setEndDrag({ id: layout.edge.id, end, node: null, port: null, pointer: p, moved: false });
+    try {
+      svgRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released */
+    }
+  }
+  /** Lets go of an end's spot: the connector meets the block wherever its route arrives. */
+  function freeEnd(id: string, end: "from" | "to") {
+    const edge = diagram.edges.find((x) => x.id === id);
+    const key = `${end}Port`;
+    if (!edge || !(key in edge.data)) return;
+    const { [key]: _p, ...rest } = edge.data;
+    useDiagram.getState().updateEdge(id, { data: rest });
+  }
   function resetRoute(id: string) {
     const edge = diagram.edges.find((e) => e.id === id);
     if (!edge || (!edge.data["route"] && !edge.data["bend"])) return;
@@ -465,8 +569,12 @@ export function Canvas() {
           ? "pres-seen"
           : "pres-dim";
 
-  const layouts = layoutEdges(nodes, diagram.edges, {
+  const draftEdges = endDrag
+    ? diagram.edges.map((x) => (x.id === endDrag.id ? withEnd(x, endDrag) : x))
+    : diagram.edges;
+  const layouts = layoutEdges(nodes, draftEdges, {
     steps: !!diagram.steps || presenting,
+    lines: diagram.lines ?? "sketch",
     override: segDrag && { id: segDrag.id, route: segDrag.route },
   }).filter((l) => !presenting || shown.has(l.edge.id));
   const edgeState = (id: string) =>
@@ -567,6 +675,7 @@ export function Canvas() {
 
   const zones = depthSort(nodes).filter((n) => n.type === "zone");
   const blocks = depthSort(nodes).filter((n) => n.type !== "zone");
+  const sketchy = (diagram.lines ?? "sketch") === "sketch";
   const selectedLayout = layouts.find((l) => l.edge.id === selectedEdge);
   const showTag = (l: EdgeLayout) => !presenting || full || l.edge.id === current?.id;
   const connectFrom = connecting ? nodes.find((n) => n.id === connecting) : undefined;
@@ -615,6 +724,21 @@ export function Canvas() {
             onClick={() => useDiagram.getState().toggleSteps()}
           >
             <ListOrdered />
+          </Button>
+          <Button
+            title={
+              sketchy
+                ? "Connectors: hand-drawn (switch to clean)"
+                : "Connectors: clean (switch to hand-drawn)"
+            }
+            aria-label="Hand-drawn connectors"
+            aria-pressed={sketchy}
+            variant="ghost"
+            size="icon"
+            className={sketchy ? "tool-active" : ""}
+            onClick={() => useDiagram.getState().setLines(sketchy ? "clean" : "sketch")}
+          >
+            <PenLine />
           </Button>
           <Button
             title={playing ? "Pause flow" : "Play flow"}
@@ -740,17 +864,22 @@ export function Canvas() {
                   e.stopPropagation();
                   resetRoute(edge.id);
                 }}
-                className={`diagram-edge edge-${edge.style} ${edge.id === selectedEdge ? "edge-selected" : ""} ${state} ${draw ? "pres-draw" : ""}`}
+                className={`diagram-edge edge-${edge.style} ${l.sketch ? "" : "edge-clean"} ${edge.id === selectedEdge ? "edge-selected" : ""} ${state} ${draw ? "pres-draw" : ""}`}
               >
                 <path className="edge-hit" data-edge-hit={edge.id} d={path} />
                 <path className="edge-casing" d={path} pathLength={draw ? 1 : undefined} />
-                <path
-                  id={`path-${edge.id}`}
-                  className="edge-line"
-                  d={path}
-                  pathLength={draw ? 1 : undefined}
-                  strokeDasharray={DASH[edge.style]}
-                />
+                {/* The smooth track: the flow dots ride along it. */}
+                <path id={`path-${edge.id}`} className="edge-track" d={path} />
+                {/* Dots don't take a second pass: doubled dots look like a mistake. */}
+                {(l.sketch ?? [path]).slice(0, edge.style === "dotted" ? 1 : 2).map((d, i) => (
+                  <path
+                    key={i}
+                    className={`edge-line edge-pass-${i + 1}`}
+                    d={d}
+                    pathLength={draw ? 1 : undefined}
+                    strokeDasharray={DASH[edge.style]}
+                  />
+                ))}
               </g>
             );
           })}
@@ -841,15 +970,22 @@ export function Canvas() {
                   key={state === "pres-current" ? `${l.edge.id}-${step}` : l.edge.id}
                   className={cls}
                 >
-                  <path
-                    d={HEAD_PATH}
-                    transform={`translate(${l.head.x} ${l.head.y}) rotate(${l.head.angle})`}
-                  />
-                  {l.tail && (
-                    <path
-                      d={HEAD_PATH}
-                      transform={`translate(${l.tail.x} ${l.tail.y}) rotate(${l.tail.angle})`}
-                    />
+                  {[l.head, l.tail].map(
+                    (h, k) =>
+                      h && (
+                        <g key={k} transform={`translate(${h.x} ${h.y}) rotate(${h.angle})`}>
+                          {l.sketch ? (
+                            <>
+                              <path className="edge-head-halo" d={HEAD_PATHS[0]} />
+                              {HEAD_PATHS.map((d, i) => (
+                                <path key={i} className={`edge-head-pass-${i + 1}`} d={d} />
+                              ))}
+                            </>
+                          ) : (
+                            <path className="edge-head-solid" d={SOLID_HEAD} />
+                          )}
+                        </g>
+                      ),
                   )}
                 </g>
               );
@@ -861,6 +997,10 @@ export function Canvas() {
               const badge = presenting && !diagram.steps && !current ? "" : l.tag.badge;
               const bw = badge ? badgeW : 0;
               const selected = edge.id === selectedEdge;
+              const tone = branchTone(
+                edge,
+                nodes.find((n) => n.id === edge.from),
+              );
               // With a number, the text pill tucks under the number's right cap: one shape.
               const tuck = badge && (text || icon) ? 10 : 0;
               const chipX = bw - tuck;
@@ -891,7 +1031,7 @@ export function Canvas() {
                       {(text || icon) && (
                         <>
                           <rect
-                            className="edge-chip"
+                            className={`edge-chip ${tone ? `edge-chip-${tone}` : ""}`}
                             x={chipX}
                             width={textW + tuck}
                             height="20"
@@ -957,6 +1097,33 @@ export function Canvas() {
                     <title>Drag to move this segment · double-click to reset the route</title>
                     <rect className="grip-hit" x="-20" y="-12" width="40" height="24" rx="12" />
                     <rect x="-11" y="-4.5" width="22" height="9" rx="4.5" />
+                  </g>
+                );
+              })}
+            {!presenting &&
+              selectedLayout &&
+              (["from", "to"] as const).map((end) => {
+                const loose =
+                  endDrag?.id === selectedLayout.edge.id && endDrag.end === end && !endDrag.node;
+                const at = loose ? endDrag.pointer : selectedLayout.ends[end];
+                const k = 1 / Math.max(0.5, diagram.viewport.zoom);
+                const pinned = `${end}Port` in selectedLayout.edge.data;
+                return (
+                  <g
+                    key={end}
+                    className={`edge-end ${pinned ? "edge-end-pinned" : ""} ${endDrag?.end === end ? "edge-end-dragging" : ""}`}
+                    transform={`translate(${at.x} ${at.y}) scale(${k})`}
+                    onPointerDown={(e) => startEnd(e, selectedLayout, end)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      freeEnd(selectedLayout.edge.id, end);
+                    }}
+                  >
+                    <title>
+                      {`Drag to attach the ${end === "from" ? "start" : "end"} anywhere on a block · double-click to let the route choose`}
+                    </title>
+                    <circle className="edge-end-hit" r="14" />
+                    <circle className="edge-end-dot" r="6.5" />
                   </g>
                 );
               })}

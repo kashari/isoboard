@@ -13,6 +13,9 @@ export const NODE_TYPES = [
   "zone",
   "start",
   "end",
+  "ko",
+  "error",
+  "exception",
   "condition",
   "process",
   "input",
@@ -94,6 +97,8 @@ export const EDGE_KINDS = [
   "signal",
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
+export const LINE_STYLES = ["sketch", "clean"] as const;
+export type LineStyle = (typeof LINE_STYLES)[number];
 export type Mode = "architecture" | "flow" | "state";
 export interface Node {
   id: string;
@@ -145,6 +150,8 @@ export interface Diagram {
   viewport: Viewport;
   /** Show sequential step numbers (1, 2, 3…) on connectors, in `edges` order. */
   steps?: boolean | undefined;
+  /** How connectors are drawn: by hand (the default) or as clean, smooth lines. */
+  lines?: LineStyle | undefined;
   /** Notes on the board (see lib/notes). */
   notes?: Note[] | undefined;
 }

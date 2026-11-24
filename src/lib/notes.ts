@@ -194,7 +194,8 @@ export const NOTE_TEXT = { font: FONT, line: LINE, pad: PAD };
 
 // ── Hand-drawn strokes (deterministic per note, so they don't wobble between renders) ──
 
-function random(seed: string) {
+/** A seeded pseudo-random source in [0, 1): the same seed always wobbles the same way. */
+export function random(seed: string) {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
   return () => {

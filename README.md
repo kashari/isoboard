@@ -15,8 +15,10 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 - **Files**: generic file, PDF, CSV, JSON, XML, spreadsheet, Word document, archive, image,
   video, text, YAML and log files. Each is a single upright sheet with its type written big in
   its own colour. Their stickers also work as connector labels.
-- **Flows**: start and end, conditions, process steps, inputs and outputs, timers and events,
-  with `true` / `false` branches and validation.
+- **Flows**: start and end, red failure ends (KO, error, exception), conditions (a diamond
+  sign with a question mark), process steps, inputs and outputs, timers and events, with
+  `true` / `false` branches (green and red tags) and validation. A condition's branches share
+  one step number.
 - **State machines**: initial, final, composite and terminate states, plus choice, junction,
   fork / join, history (shallow or deep) and entry / exit points. You can also add guards,
   actions, inputs and outputs. Transitions carry event, guard and action fields (shown in the
@@ -32,34 +34,38 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 
 ## Using it
 
-| Action                         | How                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Add a block                    | Drag it from the palette, or click it                                                           |
-| Connect                        | Use the connect tool, or drag from a block's handle to another block                            |
-| Pan / zoom                     | Space + drag, or middle mouse; mouse wheel; fit-to-screen button                                |
-| Undo / redo                    | Ctrl/⌘ Z · Ctrl/⌘ Shift Z                                                                       |
-| Duplicate · copy · paste       | Ctrl/⌘ D · C · V                                                                                |
-| Nudge · delete · deselect      | Arrow keys · Delete · Esc                                                                       |
-| Rename                         | Double-click a block                                                                            |
-| Add a note                     | `N` or the note button (tied to the selected block), or double-click empty board                |
-| Edit · move · resize a note    | Double-click it · drag it · drag any corner or edge; Ctrl Enter saves                           |
-| Point a note anywhere          | Drag the dot at the end of its line (or its round handle) onto any spot on a block or the board |
-| Step numbers on / off          | Numbered-list button in the canvas toolbar (reorder in the inspector)                           |
-| Re-route a connector           | Drag any part of it sideways (grips show when selected); double-click to reset                  |
-| Label a connector with an item | Select it, pick one under **Label item** (shows that item's sticker)                            |
-| Present                        | **Present** button or `P`                                                                       |
-| Show / hide components         | `[`                                                                                             |
-| Focus mode (canvas only)       | `F`                                                                                             |
-| Browser full screen            | Full-screen button in the top bar, or `Shift F`                                                 |
-| Quick search                   | Ctrl/⌘ K                                                                                        |
-| Play / pause flow animation    | Tap Space                                                                                       |
+| Action                         | How                                                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Add a block                    | Drag it from the palette, or click it                                                                    |
+| Connect                        | Use the connect tool, or drag from a block's handle to another block                                     |
+| Pan / zoom                     | Space + drag, or middle mouse; mouse wheel; fit-to-screen button                                         |
+| Undo / redo                    | Ctrl/⌘ Z · Ctrl/⌘ Shift Z                                                                                |
+| Duplicate · copy · paste       | Ctrl/⌘ D · C · V                                                                                         |
+| Nudge · delete · deselect      | Arrow keys · Delete · Esc                                                                                |
+| Rename                         | Double-click a block                                                                                     |
+| Add a note                     | `N` or the note button (tied to the selected block), or double-click empty board                         |
+| Edit · move · resize a note    | Double-click it · drag it · drag any corner or edge; Ctrl Enter saves                                    |
+| Point a note anywhere          | Drag the dot at the end of its line (or its round handle) onto any spot on a block or the board          |
+| Hand-drawn / clean lines       | Pen button in the canvas toolbar, or **Lines** in a connector's inspector                                |
+| Step numbers on / off          | Numbered-list button in the canvas toolbar (reorder in the inspector)                                    |
+| Re-route a connector           | Drag any part of it sideways (grips show when selected); double-click to reset                           |
+| Attach a connector anywhere    | Select it, drag the dot at either end onto any spot on a block (or another block); double-click frees it |
+| Label a connector with an item | Select it, pick one under **Label item** (shows that item's sticker)                                     |
+| Present                        | **Present** button or `P`                                                                                |
+| Show / hide components         | `[`                                                                                                      |
+| Focus mode (canvas only)       | `F`                                                                                                      |
+| Browser full screen            | Full-screen button in the top bar, or `Shift F`                                                          |
+| Quick search                   | Ctrl/⌘ K                                                                                                 |
+| Play / pause flow animation    | Tap Space                                                                                                |
 
 Connectors start plain (no label) and find their own way: they route around blocks and their
 names, keep off each other's tracks, leave and enter blocks straight, and arrive at a block's
 front when they can. They re-route live as you move blocks. Where lines still share a track,
 each gets its own lane, ordered so they peel off without crossing. Arrowheads are always drawn
-on top, so they never hide behind a block. A connector you re-route by hand keeps its path,
-and the others route around it.
+on top, so they never hide behind a block. A connector ends exactly where it meets a block's
+outline, and you can pin either end to any spot on any side of a block: the route then leaves
+or arrives through that side. A connector you re-route by hand keeps its path, and the others
+route around it.
 
 ## Presenting
 

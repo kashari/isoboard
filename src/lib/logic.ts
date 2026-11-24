@@ -56,6 +56,35 @@ export function defaultEdge(
   // A plain, unlabelled connector: name it only if it needs a name.
   return { label: "", kind: "plain" };
 }
+/** Blocks whose outgoing connectors are alternative branches, not consecutive steps. */
+const BRANCHING = new Set<NodeType>(["condition", "choice"]);
+/**
+ * Step number of each connector, in `edges` order. The branches out of a condition (or a choice)
+ * are alternatives, so they are one step: every branch shares the number of the first.
+ */
+export function stepNumbers(nodes: Node[], edges: Edge[]): Map<string, number> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const out = new Map<string, number>();
+  const branch = new Map<string, number>();
+  let k = 0;
+  for (const e of edges) {
+    const from = byId.get(e.from);
+    if (!from || !byId.has(e.to) || e.from === e.to) continue;
+    if (BRANCHING.has(from.type)) {
+      if (!branch.has(e.from)) branch.set(e.from, ++k);
+      out.set(e.id, branch.get(e.from)!);
+    } else out.set(e.id, ++k);
+  }
+  return out;
+}
+/** A condition's branch reads as a yes (green) or a no (red), from its label. */
+export function branchTone(edge: Edge, from: Node | undefined): "yes" | "no" | "" {
+  if (from?.type !== "condition") return "";
+  const t = edge.label.trim().toLowerCase();
+  if (/^(true|yes|y|ok|valid|success|pass(ed)?)$/.test(t)) return "yes";
+  if (/^(false|no|n|ko|invalid|fail(ed|ure)?|error|else)$/.test(t)) return "no";
+  return "";
+}
 export type Issue = { id: string; message: string; nodeId?: string; edgeId?: string };
 export function validate(d: Diagram): Issue[] {
   const issues: Issue[] = [];

@@ -56,6 +56,8 @@ export interface SpecEdge {
 export interface Spec {
   name?: string;
   steps?: boolean;
+  /** "sketch" (hand-drawn, the default) or "clean". */
+  lines?: string;
   direction?: "x" | "y";
   wrap?: number;
   nodes: SpecNode[];
@@ -337,6 +339,7 @@ export function buildSpec(input: unknown): Built {
     // {0, 0} makes the editor fit the diagram to the screen when it opens.
     viewport: { x: 0, y: 0, zoom: 1 },
     ...(spec.steps ? { steps: true } : {}),
+    ...(spec.lines === "clean" ? { lines: "clean" as const } : {}),
     ...(notes.length ? { notes } : {}),
   };
   warnings.push(...validate(diagram).map((i) => i.message));

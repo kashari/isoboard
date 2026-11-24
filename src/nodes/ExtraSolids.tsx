@@ -481,7 +481,85 @@ function Submachine({ node }: { node: Node }) {
 }
 
 /** Shape renderers for the extra node types; NodeSolid falls back to its built-ins. */
+/* ---------- Flowchart: decision and failure ends ---------- */
+
+/** Condition: the flowchart decision. An upright diamond sign with a big question mark. */
+function Decision() {
+  const T = 7; // the sign's thickness shows along its upper edges
+  const [top, right, bottom, left] = [-92, [35, -54], -16, [-35, -54]] as const;
+  return (
+    <>
+      <Prism w={1.25} d={1.25} h={7} topClass="face-base" />
+      <path className="face-right" d="M -3 -6 L -3 -17 L 3 -17 L 3 -6 Z" />
+      <path
+        className="face-left"
+        d={`M ${left[0]} ${left[1]} L 0 ${top} L 0 ${top - T} L ${left[0]} ${left[1] - T} Z`}
+      />
+      <path
+        className="face-right"
+        d={`M 0 ${top} L ${right[0]} ${right[1]} L ${right[0]} ${right[1] - T} L 0 ${top - T} Z`}
+      />
+      <path
+        className="face-top decision-face"
+        d={`M 0 ${top} L ${right[0]} ${right[1]} L 0 ${bottom} L ${left[0]} ${left[1]} Z`}
+      />
+      <path
+        className="decision-rim"
+        d={`M 0 ${top + 9} L ${right[0] - 13} ${right[1]} L 0 ${bottom - 9} L ${left[0] + 13} ${left[1]} Z`}
+      />
+      <path className="q-outline" d="M -8.5 -64 C -8.5 -75 8.5 -75 8.5 -64 C 8.5 -56 0 -56 0 -47" />
+      <path className="q-fill" d="M -8.5 -64 C -8.5 -75 8.5 -75 8.5 -64 C 8.5 -56 0 -56 0 -47" />
+      <circle className="q-dot" cy="-37.5" r="4.6" />
+      <path className="glint" d="M -22 -58 L -9 -73" />
+    </>
+  );
+}
+
+/** A failure end: a red puck (KO, error or exception) with an upright emblem on it. */
+function Alarm({ kind }: { kind: "ko" | "error" | "exception" }) {
+  return (
+    <g className="alarm">
+      <path className="alarm-side" d="M -38 -8 L -38 4 A 38 19 0 0 0 38 4 L 38 -8 Z" />
+      <ellipse className="alarm-top" cy="-8" rx="38" ry="19" />
+      <ellipse className="alarm-ring" cy="-8" rx="29" ry="14.5" />
+      <Glint cx={0} cy={-8} hw={38} hh={19} />
+      {kind === "ko" ? (
+        <g transform="translate(0 -34)">
+          <circle className="drop" cx="2" cy="2.5" r="17" />
+          <circle className="paper alarm-badge" r="17" />
+          <text className="alarm-text" y="5.5" textAnchor="middle">
+            KO
+          </text>
+        </g>
+      ) : kind === "error" ? (
+        <g transform="translate(0 -36)">
+          <path className="drop" d="M 2 -18.5 L 22 15.5 L -18 15.5 Z" />
+          <path className="paper alarm-badge" d="M 0 -21 L 20 13 L -20 13 Z" />
+          <path className="alarm-mark" d="M 0 -8 L 0 2" />
+          <circle className="alarm-mark-dot" cy="7.5" r="2.4" />
+        </g>
+      ) : (
+        <g transform="translate(0 -36)">
+          <path
+            className="drop"
+            d="M -6 -18 L 10 -18 L 4 -3 L 14 -3 L -5 22 L 0 4 L -11 4 Z"
+            transform="translate(2 2)"
+          />
+          <path
+            className="alarm-bolt"
+            d="M -6 -18 L 10 -18 L 4 -3 L 14 -3 L -5 22 L 0 4 L -11 4 Z"
+          />
+        </g>
+      )}
+    </g>
+  );
+}
+
 export const extraSolids: Partial<Record<NodeType, (node: Node) => ReactElement>> = {
+  condition: () => <Decision />,
+  ko: () => <Alarm kind="ko" />,
+  error: () => <Alarm kind="error" />,
+  exception: () => <Alarm kind="exception" />,
   file: (node) => <Document node={node} />,
   mobile: () => <Mobile />,
   cdn: () => <Sphere withBase />,

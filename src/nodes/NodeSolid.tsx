@@ -96,14 +96,6 @@ export function NodeSolid({ node, preview = false }: SolidProps) {
             ))}
             <FaceIcon name={node.icon} cx={0} cy={-29} scale={2.4} />
           </>
-        ) : type === "condition" ? (
-          <>
-            <path className="face-left" d="M -44 -20 L 0 4 L 0 18 L -44 -6 Z" />
-            <path className="face-right" d="M 0 4 L 44 -20 L 44 -6 L 0 18 Z" />
-            <path className="face-top" d="M 0 -50 L 44 -20 L 0 4 L -44 -20 Z" />
-            <Glint cx={0} cy={-23} hw={44} hh={27} />
-            <FaceIcon name={node.icon} cx={0} cy={-23} scale={2.4} />
-          </>
         ) : type === "start" || type === "end" || type === "initial" || type === "final" ? (
           <>
             <ellipse

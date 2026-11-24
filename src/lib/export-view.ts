@@ -18,6 +18,7 @@ const UI_ONLY = [
   ".marquee",
   ".connecting-line",
   ".segment-grip",
+  ".edge-end",
   ".flow-dot",
   ".note-ui",
   "foreignObject",

@@ -961,13 +961,23 @@ kbd {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Connectors look drawn by hand: two loose pencil passes (lib/routing sketchPath) over a soft
+   paper halo that follows the smooth track. */
 .edge-line {
   stroke: var(--node-ink);
-  stroke-width: 2.8;
+  stroke-width: 3.4;
+}
+.edge-line.edge-pass-2 {
+  stroke-width: 1.9;
+  opacity: 0.85;
 }
 .edge-casing {
   stroke: var(--node-paper);
-  stroke-width: 7.5;
+  stroke-width: 10;
+}
+.edge-track {
+  fill: none;
+  stroke: none;
 }
 .edge-hit {
   stroke: transparent;
@@ -979,22 +989,32 @@ kbd {
 }
 .edge-selected .edge-casing {
   stroke: var(--node-mint);
-  stroke-width: 10;
+  stroke-width: 13;
 }
 .edge-selected .edge-line {
-  stroke-width: 3.2;
+  stroke-width: 3.8;
 }
 .edge-head path {
-  fill: var(--node-ink);
-  stroke: var(--node-paper);
-  stroke-width: 1.6;
+  fill: none;
+  stroke: var(--node-ink);
+  stroke-linecap: round;
   stroke-linejoin: round;
-  paint-order: stroke;
   pointer-events: none;
 }
-.edge-head-selected path {
+.edge-head .edge-head-pass-1 {
+  stroke-width: 3.4;
+}
+.edge-head .edge-head-pass-2 {
+  stroke-width: 1.9;
+  opacity: 0.85;
+}
+.edge-head .edge-head-halo {
+  stroke: var(--node-paper);
+  stroke-width: 9;
+}
+.edge-head-selected .edge-head-halo {
   stroke: var(--node-mint);
-  stroke-width: 2.4;
+  stroke-width: 11;
 }
 /* Grips of the selected connector: drag one sideways to move that segment. */
 .segment-grip {
@@ -2014,10 +2034,10 @@ kbd {
   opacity: 0.22;
 }
 .pres-current .edge-line {
-  stroke-width: 3.6;
+  stroke-width: 4;
 }
 .pres-current .edge-casing {
-  stroke-width: 11;
+  stroke-width: 14;
   stroke: color-mix(in oklch, var(--node-amber) 70%, var(--node-paper));
 }
 /* The connector on stage draws itself, then its arrowhead and tag pop in. */
@@ -2764,4 +2784,116 @@ kbd {
 .field-section textarea.note-field {
   height: 130px;
   font-size: 11px;
+}
+
+/* Flowchart decision (condition) and failure ends (ko / error / exception), ExtraSolids.tsx */
+.solid .decision-rim {
+  fill: none;
+  stroke: var(--node-ink);
+  stroke-width: 1.4;
+  opacity: 0.35;
+}
+.solid .q-outline {
+  fill: none;
+  stroke: var(--node-ink);
+  stroke-width: 10;
+}
+.solid .q-fill {
+  fill: none;
+  stroke: var(--node-paper);
+  stroke-width: 5;
+}
+.solid .q-dot {
+  fill: var(--node-paper);
+  stroke-width: 2.6;
+}
+.solid .alarm {
+  --alarm: oklch(0.6 0.21 27);
+}
+.solid .alarm-top {
+  fill: var(--alarm);
+}
+.solid .alarm-side {
+  fill: color-mix(in oklch, var(--alarm) 78%, var(--node-shade));
+}
+.solid .alarm-ring {
+  fill: none;
+  stroke: var(--node-paper);
+  stroke-width: 1.6;
+  opacity: 0.85;
+}
+.solid .alarm-badge {
+  stroke-width: 2.4;
+}
+.solid .alarm-text {
+  fill: var(--alarm);
+  stroke: none;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.solid .alarm-mark {
+  fill: none;
+  stroke: var(--alarm);
+  stroke-width: 4.2;
+}
+.solid .alarm-mark-dot {
+  fill: var(--alarm);
+  stroke: none;
+}
+.solid .alarm-bolt {
+  fill: var(--node-amber);
+  stroke-width: 2.4;
+}
+
+/* Connector end handles (drag to attach anywhere on a block) and branch tones */
+.edge-end {
+  cursor: grab;
+}
+.edge-end-dragging {
+  cursor: grabbing;
+}
+.edge-end-hit {
+  fill: transparent;
+}
+.edge-end-dot {
+  fill: var(--node-paper);
+  stroke: var(--node-ink);
+  stroke-width: 2.4;
+}
+.edge-end-pinned .edge-end-dot {
+  fill: var(--node-amber);
+}
+.edge-end:hover .edge-end-dot {
+  stroke-width: 3.2;
+}
+.edge-chip.edge-chip-yes {
+  fill: oklch(0.88 0.1 150);
+}
+.edge-chip.edge-chip-no {
+  fill: oklch(0.87 0.08 25);
+}
+
+/* Clean connectors (diagram.lines = "clean"): one smooth stroke and a solid arrowhead. */
+.edge-clean .edge-line {
+  stroke-width: 2.8;
+}
+.edge-clean .edge-casing {
+  stroke-width: 7.5;
+}
+.edge-clean.edge-selected .edge-casing {
+  stroke-width: 10;
+}
+.edge-clean.edge-selected .edge-line {
+  stroke-width: 3.2;
+}
+.edge-head .edge-head-solid {
+  fill: var(--node-ink);
+  stroke: var(--node-paper);
+  stroke-width: 1.6;
+  paint-order: stroke;
+}
+.edge-head-selected .edge-head-solid {
+  stroke: var(--node-mint);
+  stroke-width: 2.4;
 }

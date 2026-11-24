@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NODE_TYPES, EDGE_KINDS, type Diagram, type NodeColor } from "@/types/diagram";
+import { NODE_TYPES, EDGE_KINDS, LINE_STYLES, type Diagram, type NodeColor } from "@/types/diagram";
 import { registry } from "@/nodes/registry";
 import { newId } from "@/store/diagram";
 import { buildSpec, isSpec } from "./spec";
@@ -87,6 +87,7 @@ const schema = z.object({
         : { x: 0, y: 0, zoom: 1 },
     ),
   steps: z.boolean().optional().catch(undefined),
+  lines: z.enum(LINE_STYLES).optional().catch(undefined),
   // A broken note is skipped rather than failing the file.
   notes: z
     .array(z.unknown())

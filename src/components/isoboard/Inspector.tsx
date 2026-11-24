@@ -274,6 +274,28 @@ export function Inspector() {
                 </div>
               </div>
               <div className="field-label">
+                LINES
+                <span className="field-hint">How every connector on this board is drawn.</span>
+                <div className="step-row" role="group" aria-label="Line style">
+                  {(
+                    [
+                      ["sketch", "Hand-drawn"],
+                      ["clean", "Clean"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      variant={(diagram.lines ?? "sketch") === value ? "default" : "outline"}
+                      size="sm"
+                      aria-pressed={(diagram.lines ?? "sketch") === value}
+                      onClick={() => useDiagram.getState().setLines(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="field-label">
                 ROUTE
                 <span className="field-hint">
                   Drag any part of the connector sideways to re-route it.
