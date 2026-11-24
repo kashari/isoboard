@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Search, ChevronDown, GripVertical, PanelLeftClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { registry, paletteGroupOrder } from "@/nodes/registry";
+import { registry, paletteGroupOrder, previewBox } from "@/nodes/registry";
 import { NodeSolid } from "@/nodes/NodeSolid";
 import { useDiagram } from "@/store/diagram";
 import { addNodeInView } from "./add-node";
@@ -83,7 +83,11 @@ export function Palette({ onHide }: { onHide: () => void }) {
                       onClick={() => addNodeInView(type)}
                     >
                       <GripVertical className="palette-grip" />
-                      <svg viewBox="-65 -85 130 140" className="palette-preview" aria-hidden="true">
+                      <svg
+                        viewBox={previewBox(type, [-65, -85, 130, 140])}
+                        className="palette-preview"
+                        aria-hidden="true"
+                      >
                         <NodeSolid
                           preview
                           node={{

@@ -562,3 +562,18 @@ export const paletteGroupOrder = [
   "ANNOTATIONS",
 ];
 export const colors: NodeColor[] = ["amber", "blue", "lavender", "mint", "peach", "stone"];
+
+/**
+ * The viewBox for a preview of an item (palette tile, inspector card): `box` is the usual one,
+ * `[x, y, w, h]`. Items that stand taller than its top (the condition's sign) get a box that
+ * starts high enough, widened to the same shape so they shrink a little instead of being cut.
+ */
+const PREVIEW_TOP: Partial<Record<NodeType, number>> = { condition: -106 };
+export function previewBox(type: NodeType, box: [number, number, number, number]) {
+  const [x, y, w, h] = box;
+  const top = PREVIEW_TOP[type];
+  if (top === undefined || top >= y) return box.join(" ");
+  const h2 = h + (y - top);
+  const w2 = (w * h2) / h;
+  return [x - (w2 - w) / 2, top, w2, h2].map((v) => Math.round(v * 10) / 10).join(" ");
+}

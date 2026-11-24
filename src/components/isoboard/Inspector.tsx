@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
-import { registry, colors } from "@/nodes/registry";
+import { registry, colors, previewBox } from "@/nodes/registry";
 import { NodeSolid, NodeIcon } from "@/nodes/NodeSolid";
 import { EDGE_KINDS, type EdgeStyle, type EdgeKind } from "@/types/diagram";
 import { readRoute, autoRoutes, sameRoute } from "@/lib/routing";
@@ -365,7 +365,7 @@ export function Inspector() {
           <>
             <div className="inspector-scroll">
               <div className="selection-card">
-                <svg viewBox="-80 -85 160 130" aria-hidden="true">
+                <svg viewBox={previewBox(node.type, [-80, -85, 160, 130])} aria-hidden="true">
                   <NodeSolid node={node} preview />
                 </svg>
                 <div className="selection-card-title">
