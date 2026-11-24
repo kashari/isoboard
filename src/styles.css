@@ -2902,6 +2902,24 @@ kbd {
 .pres-label.pres-label-no {
   background: oklch(0.87 0.08 25);
 }
+/* The step ends the flow: a flag after the block it ends at. */
+.pres-end {
+  align-self: center;
+  padding: 1px 8px;
+  border: 1.5px solid var(--foreground);
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pres-end-ok {
+  background: oklch(0.88 0.1 150);
+}
+.pres-end-fail {
+  background: oklch(0.62 0.2 25);
+  color: #fff;
+}
 
 /* Clean connectors (diagram.lines = "clean"): one smooth stroke and a solid arrowhead. */
 .edge-clean .edge-line {

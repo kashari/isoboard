@@ -286,9 +286,12 @@ describe("flowcharts", () => {
     );
     expect(container.querySelectorAll(".edge-tag.pres-current").length).toBe(2);
     const rows = [...container.querySelectorAll(".pres-branches li")].map((li) => li.textContent);
-    expect(rows).toEqual(["trueSave", "falseReject"]);
+    expect(rows).toEqual(["trueSave", "falseRejectKO"]);
+    expect(container.querySelector(".pres-end-fail")?.textContent).toBe("KO");
     expect(container.querySelector(".pres-label-no")?.textContent).toBe("false");
     expect(container.querySelector(".pres-count")?.textContent).toBe("2 / 3");
+    act(() => useDiagram.getState().setPresentation({ step: 3 }));
+    expect(container.querySelector(".pres-end-ok")?.textContent).toBe("End");
     unmount();
     act(() => useDiagram.getState().stopPresenting());
   });

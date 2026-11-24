@@ -77,6 +77,27 @@ export function stepNumbers(nodes: Node[], edges: Edge[]): Map<string, number> {
   }
   return out;
 }
+/**
+ * How a flow ends at a block, for marking end transitions: a good end (end, final, terminate,
+ * exit) or a failure (KO, error, exception). Null when the flow goes on.
+ */
+export function endKind(n: Node | undefined): { text: string; tone: "ok" | "fail" } | null {
+  switch (n?.type) {
+    case "end":
+    case "final":
+    case "terminate":
+    case "exit":
+      return { text: "End", tone: "ok" };
+    case "ko":
+      return { text: "KO", tone: "fail" };
+    case "error":
+      return { text: "Error", tone: "fail" };
+    case "exception":
+      return { text: "Exception", tone: "fail" };
+    default:
+      return null;
+  }
+}
 /** A condition's branch reads as a yes (green) or a no (red), from its label. */
 export function branchTone(edge: Edge, from: Node | undefined): "yes" | "no" | "" {
   if (from?.type !== "condition") return "";

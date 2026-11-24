@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDiagram } from "@/store/diagram";
 import { presentationSteps } from "@/lib/routing";
-import { branchTone, edgeText } from "@/lib/logic";
+import { branchTone, edgeText, endKind } from "@/lib/logic";
 import { NodeIcon } from "@/nodes/NodeSolid";
 
 type Tool = "pointer" | "laser" | "ink";
@@ -152,6 +152,11 @@ export function Presenter() {
   const branches = group && group.length > 1 ? group : null;
   const source = group && diagram.nodes.find((n) => n.id === group[0]!.from);
   const name = (id: string) => diagram.nodes.find((n) => n.id === id)?.label || "Untitled";
+  // A connector into an end (or a KO / error / exception) is marked as where the flow ends.
+  const endTag = (id: string) => {
+    const end = endKind(diagram.nodes.find((n) => n.id === id));
+    return end ? <span className={`pres-end pres-end-${end.tone}`}>{end.text}</span> : null;
+  };
   const note = edge ? String(edge.data["note"] ?? "").trim() : "";
   const label = edge ? edgeText(edge).trim() : "";
   const icon = edge ? String(edge.data["icon"] ?? "") : "";
@@ -288,6 +293,7 @@ export function Presenter() {
                         )}
                         <ArrowRight className="pres-arrow" size={16} strokeWidth={2.6} />
                         <strong>{name(b.to)}</strong>
+                        {endTag(b.to)}
                       </li>
                     );
                   })}
@@ -302,6 +308,7 @@ export function Presenter() {
                   <strong>{name(edge.from)}</strong>
                   <ArrowRight className="pres-arrow" size={18} strokeWidth={2.6} />
                   <strong>{name(edge.to)}</strong>
+                  {endTag(edge.to)}
                 </div>
                 {(label || icon || note) && (
                   <div className="pres-text">

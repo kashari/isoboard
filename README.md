@@ -72,7 +72,8 @@ route around it.
 **Present** (or `P`) goes full screen and walks through the connectors in step order: an
 overview with the title, then one connector per step (it draws itself, its two blocks light up,
 the rest dims and the camera follows), then the full picture. A condition's branches come on
-stage together as one step, and the caption lists each branch. Add a **presenter note** to a
+stage together as one step, and the caption lists each branch. A step into an end is
+flagged in the caption: **End** in green, or **KO** / **Error** / **Exception** in red. Add a **presenter note** to a
 connector in the inspector to show it in the caption.
 
 | Key               | Action                                                 |
