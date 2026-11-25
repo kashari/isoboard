@@ -42,6 +42,7 @@ import { noteRect, NEW_NOTE_OFFSET, NOTE_SIZE } from "@/lib/notes";
 import { openDiagram } from "./file-actions";
 import { nearestPort, type Port } from "@/lib/ports";
 import { branchTone } from "@/lib/logic";
+import { PAN_GESTURE_MS, wheelPans, wheelPixels } from "@/lib/wheel";
 import type { Diagram, Node, NodeType } from "@/types/diagram";
 
 /** Every note's corners, so fitting the view keeps them in frame. */
@@ -134,6 +135,7 @@ export function Canvas() {
   const viewport = useRef(diagram.viewport);
   const drag = useRef<DragState | null>(null);
   const space = useRef(false);
+  const lastPan = useRef(-Infinity);
   const [tool, setTool] = useState<"select" | "pan" | "connect">("select");
   const toolRef = useRef(tool);
   toolRef.current = tool;
@@ -203,7 +205,8 @@ export function Canvas() {
       .filter(
         (e) =>
           !useDiagram.getState().presentation &&
-          (e.type === "wheel" ||
+          ((e.type === "wheel" &&
+            !wheelPans(e, performance.now() - lastPan.current < PAN_GESTURE_MS)) ||
             e.type.startsWith("touch") ||
             e.button === 1 ||
             space.current ||
@@ -215,11 +218,30 @@ export function Canvas() {
       });
     zoomRef.current = behavior;
     select(svg).call(behavior).on("dblclick.zoom", null);
+    // A two-finger scroll on a trackpad or Magic Mouse pans the board (d3-zoom would zoom on
+    // every wheel event and ignore deltaX); a mouse wheel and a pinch still zoom.
+    let settle = 0;
+    const wheel = (e: WheelEvent) => {
+      if (useDiagram.getState().presentation) return;
+      if (!wheelPans(e, performance.now() - lastPan.current < PAN_GESTURE_MS)) return;
+      e.preventDefault();
+      lastPan.current = performance.now();
+      const d = wheelPixels(e, svg.clientHeight);
+      const t = zoomTransform(svg);
+      const v = { x: t.x - d.x, y: t.y - d.y, zoom: t.k };
+      select(svg).property("__zoom", zoomIdentity.translate(v.x, v.y).scale(v.zoom));
+      applyView(v);
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => setViewport(viewport.current), PAN_GESTURE_MS);
+    };
+    svg.addEventListener("wheel", wheel, { passive: false });
     const v = useDiagram.getState().diagram.viewport;
     if (v.x === 0 && v.y === 0) fit();
     else select(svg).call(behavior.transform, zoomIdentity.translate(v.x, v.y).scale(v.zoom));
     return () => {
       select(svg).on(".zoom", null);
+      svg.removeEventListener("wheel", wheel);
+      window.clearTimeout(settle);
     };
   }, [diagram.id, fit, setViewport, applyView]);
   useEffect(() => {

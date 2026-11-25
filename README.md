@@ -38,7 +38,7 @@ and export a crisp picture. Everything is SVG, with no WebGL, and your work is s
 | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | Add a block                    | Drag it from the palette, or click it                                                                    |
 | Connect                        | Use the connect tool, or drag from a block's handle to another block                                     |
-| Pan / zoom                     | Space + drag, or middle mouse; mouse wheel; fit-to-screen button                                         |
+| Pan / zoom                     | Two-finger scroll (trackpad, Magic Mouse), Space + drag or middle mouse; mouse wheel or pinch to zoom    |
 | Undo / redo                    | Ctrl/⌘ Z · Ctrl/⌘ Shift Z                                                                                |
 | Duplicate · copy · paste       | Ctrl/⌘ D · C · V                                                                                         |
 | Nudge · delete · deselect      | Arrow keys · Delete · Esc                                                                                |
